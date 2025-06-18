@@ -1,0 +1,21 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": "../autoprompter-ai-toolkit"
+		},
+		{
+			"path": "../general-ai-toolkit"
+		}
+	],
+	"settings": {
+		"terminal.integrated.env.linux": {
+			"CLOUD_OFFICE_SOURCE_DIR": "${workspaceFolder}",
+			"CLOUD_OFFICE_EXTERNALS_ROOT_DIR": "/home/dev/COExternals_third_c"
+		},
+		"typescript.tsc.autoDetect": "off",
+		"typescript.preferences.includePackageJsonAutoImports": "on"
+	}
+}
