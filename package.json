@@ -1,7 +1,7 @@
 {
     "name": "autoprompter",
     "displayName": "AutoPrompter",
-    "description": "Automated AI prompt injection for continuous coding assistance with GitHub Copilot and Cursor Chat",
+    "description": "Automated AI prompt sending for GitHub Copilot Chat with minimal interval scheduling",
     "version": "1.0.0",
     "publisher": "autoprompter",
     "icon": "icon.png",
@@ -15,14 +15,13 @@
     "keywords": [
         "ai",
         "copilot",
-        "cursor",
         "automation",
         "prompting",
         "assistant",
         "productivity",
         "chat",
         "coding",
-        "continuous"
+        "minimal-interval"
     ],
     "repository": {
         "type": "git",
@@ -63,35 +62,35 @@
         },
         "commands": [
             {
-                "command": "autoprompter.pause",
-                "title": "Pause AutoPrompter",
-                "icon": "$(debug-pause)"
+                "command": "autoprompter.toggleAutomation",
+                "title": "Toggle AutoPrompter Automation",
+                "icon": "$(play)"
             },
             {
-                "command": "autoprompter.resume",
-                "title": "Resume AutoPrompter",
-                "icon": "$(debug-start)"
-            },
-            {
-                "command": "autoprompter.sendPromptNow",
-                "title": "Send Prompt Now",
+                "command": "autoprompter.executeNow",
+                "title": "Execute Prompt Now",
                 "icon": "$(send)"
             }
         ],
         "configuration": {
             "title": "AutoPrompter",
             "properties": {
-                "autoprompter.schedule.intervalMinutes": {
-                    "type": "number",
-                    "default": 5,
-                    "minimum": 1,
-                    "maximum": 60,
-                    "description": "Minimum minutes between automated prompts"
+                "autoprompter.promptText": {
+                    "type": "string",
+                    "default": "Please review the current code and provide suggestions for improvement.",
+                    "description": "The prompt text to send to GitHub Copilot"
                 },
-                "autoprompter.templates": {
-                    "type": "array",
-                    "default": [],
-                    "description": "Custom prompt templates"
+                "autoprompter.minimalIntervalMs": {
+                    "type": "number",
+                    "default": 60000,
+                    "minimum": 1000,
+                    "maximum": 600000,
+                    "description": "Minimal interval between prompts in milliseconds (1-10 minutes)"
+                },
+                "autoprompter.enabled": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Whether automation is enabled"
                 }
             }
         }
