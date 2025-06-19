@@ -1,21 +1,5 @@
 import { PromptScheduler, AISessionMonitor, PromptTemplate, RenderedPrompt } from '../domain';
-import { AITarget } from '.    private async selectTemplate(): Promise<PromptTemplate | null> {
-        try {
-            // Get all available templates from repository
-            const templates = await this.templateSelectionService.getAvailableTemplates();
-            
-            if (templates.length === 0) {
-                return null;
-            }
-            
-            // For simplified implementation, just return the first template
-            // In a more sophisticated version, this could be based on user preferences
-            return templates[0];
-        } catch (error) {
-            console.error('Error selecting template:', error);
-            return null;
-        }
-    }/types';
+import { AITarget } from '../domain/types';
 import { 
     ExecutionResult, 
     CodeContext,
@@ -57,14 +41,21 @@ export class AutomatedPromptingUseCase {
                 return ExecutionResult.skipped('Cannot execute prompt: conditions not met');
             }
 
-            // Select appropriate template (simplified - no context analysis)
-            const template = await this.selectTemplate();
+
+            // Gather code context
+            const context = await this.gatherCodeContext();
+            if (!context) {
+                return ExecutionResult.skipped('No code context available');
+            }
+
+            // Select appropriate template for the context
+            const template = await this.selectTemplate(context);
             if (!template) {
                 return ExecutionResult.skipped('No suitable template found');
             }
 
-            // Render the prompt (simplified - no context variables)
-            const prompt = template.render();
+            // Render the prompt with context
+            const prompt = await this.renderPrompt(template, context);
 
             // Determine target AI system
             const target = await this.determineTarget();

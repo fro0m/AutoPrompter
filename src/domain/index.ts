@@ -1,5 +1,5 @@
 // Domain Types
-export * from './types';
+export * from './types'; // Already correct, as ./types is domain/types
 
 // Domain Events
 export * from './events';

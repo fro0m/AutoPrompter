@@ -16,8 +16,12 @@
             "@application/*": ["src/application/*"],
             "@infrastructure/*": ["src/infrastructure/*"],
             "@presentation/*": ["src/presentation/*"]
-        }
+        },
+        "typeRoots": [
+            "./node_modules/@types"
+            ],
+        "types": ["node", "vscode", "mocha"],
     },
-    "include": ["src/**/*"],
-    "exclude": ["node_modules", "out"]
+    "include": ["src/**/*", "src/global.d.ts"],
+    "exclude": ["out"]
 }

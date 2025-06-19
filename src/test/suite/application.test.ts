@@ -65,6 +65,19 @@ class MockConfigurationService implements IConfigurationService {
         }
     }
 
+    async createPromptTemplate(template: PromptTemplate): Promise<void> {
+        if (this.templates.some(t => t.id === template.id)) {
+            throw new Error(`Template with ID '${template.id}' already exists`);
+        }
+        this.templates.push(template);
+    }
+
+    async deletePromptTemplate(templateId: TemplateId): Promise<boolean> {
+        const initialLength = this.templates.length;
+        this.templates = this.templates.filter(t => t.id !== templateId);
+        return this.templates.length < initialLength;
+    }
+
     async getScheduleInterval(): Promise<TimeInterval> {
         return this.interval;
     }

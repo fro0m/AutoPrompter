@@ -28,6 +28,17 @@ interface SerializableTemplate {
  * VS Code workspace-based template repository implementation
  */
 export class WorkspaceTemplateRepository implements ITemplateRepository {
+
+    // ITemplateSelectionService implementation
+    async selectBestTemplate(context: any): Promise<PromptTemplate | null> {
+        // For now, just return the first available template as a stub
+        const templates = await this.findAll();
+        return templates.length > 0 ? templates[0] : null;
+    }
+
+    async getAvailableTemplates(): Promise<PromptTemplate[]> {
+        return this.findAll();
+    }
     private static readonly TEMPLATES_CONFIG_KEY = 'autoprompter.templates';
     private static readonly METADATA_CONFIG_KEY = 'autoprompter.templateMetadata';
     

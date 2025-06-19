@@ -1,4 +1,4 @@
-import { SessionId, SessionState } from './types';
+import { SessionId, SessionState } from '../domain/types';
 import { PromptScheduler, ScheduleConfiguration } from './prompt-scheduler';
 import { AISessionMonitor } from './ai-session-monitor';
 import { SessionStateChangedEvent } from './events';

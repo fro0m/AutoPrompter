@@ -38,16 +38,8 @@ export class ConfigurationManagementUseCase {
      * @param template New template to create
      */
     async createPromptTemplate(template: PromptTemplate): Promise<void> {
-        // Check if template with same ID already exists
-        const existingTemplates = await this.configService.getPromptTemplates();
-        const existingTemplate = existingTemplates.find(t => t.id === template.id);
-        
-        if (existingTemplate) {
-            throw new Error(`Template with ID '${template.id}' already exists`);
-        }
-
         try {
-            await this.configService.updatePromptTemplate(template.id, template);
+            await this.configService.createPromptTemplate(template);
         } catch (error) {
             throw new Error(`Failed to create prompt template: ${error instanceof Error ? error.message : String(error)}`);
         }
@@ -58,17 +50,11 @@ export class ConfigurationManagementUseCase {
      * @param templateId ID of the template to delete
      */
     async deletePromptTemplate(templateId: TemplateId): Promise<void> {
-        const existingTemplates = await this.configService.getPromptTemplates();
-        const templateExists = existingTemplates.some(t => t.id === templateId);
-        
-        if (!templateExists) {
-            throw new Error(`Template with ID '${templateId}' not found`);
-        }
-
         try {
-            // Implementation depends on configuration service supporting deletion
-            // For now, we'll throw an error indicating this needs to be implemented
-            throw new Error('Template deletion not yet implemented in configuration service');
+            const deleted = await this.configService.deletePromptTemplate(templateId);
+            if (!deleted) {
+                throw new Error(`Template with ID '${templateId}' not found`);
+            }
         } catch (error) {
             throw new Error(`Failed to delete prompt template: ${error instanceof Error ? error.message : String(error)}`);
         }

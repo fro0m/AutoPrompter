@@ -1,5 +1,5 @@
 import { PromptTemplate, TimeInterval } from './value-objects';
-import { TemplateId, PromptCategory } from './types';
+import { TemplateId, PromptCategory } from '../domain/types';
 import { ScheduleConfiguration } from './prompt-scheduler';
 
 /**

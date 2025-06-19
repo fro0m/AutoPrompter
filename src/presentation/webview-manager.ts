@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import * as path from 'path';
 import { IWebviewManager } from './interfaces';
 
 /**
@@ -14,10 +15,10 @@ export class WebviewManager implements IWebviewManager {
     public getHtmlContent(webview: vscode.Webview, extensionUri: vscode.Uri): string {
         // Get the URI for the CSS and JS files
         const styleUri = webview.asWebviewUri(
-            vscode.Uri.joinPath(extensionUri, 'media', 'style.css')
+            vscode.Uri.file(path.join(extensionUri.fsPath, 'media', 'style.css'))
         );
         const scriptUri = webview.asWebviewUri(
-            vscode.Uri.joinPath(extensionUri, 'media', 'script.js')
+            vscode.Uri.file(path.join(extensionUri.fsPath, 'media', 'script.js'))
         );
 
         // Use a nonce to whitelist which scripts can be run

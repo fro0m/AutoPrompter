@@ -1,5 +1,4 @@
-import { ScheduleId, SessionState, AITarget } from './types';
-import { TimeInterval, DateTime } from './types';
+import { ScheduleId, SessionState, AITarget, TimeInterval, DateTime } from '../domain/types';
 import { PromptSentEvent } from './events';
 import { PromptTemplate, RenderedPrompt } from './value-objects';
 

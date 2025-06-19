@@ -72,6 +72,8 @@ export interface IPromptDeliveryService {
 export interface IConfigurationService {
     getPromptTemplates(): Promise<PromptTemplate[]>;
     updatePromptTemplate(templateId: TemplateId, template: PromptTemplate): Promise<void>;
+    createPromptTemplate(template: PromptTemplate): Promise<void>;
+    deletePromptTemplate(templateId: TemplateId): Promise<boolean>;
     getScheduleInterval(): Promise<TimeInterval>;
     setScheduleInterval(interval: TimeInterval): Promise<void>;
     isAutomationEnabled(): Promise<boolean>;

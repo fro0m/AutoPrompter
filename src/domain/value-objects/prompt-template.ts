@@ -1,4 +1,4 @@
-import { TemplateId, PromptCategory } from '../types';
+import { TemplateId, PromptCategory } from '../types'; // Already correct, as ../types points to domain/types
 
 /**
  * TemplateVariable Value Object

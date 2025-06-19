@@ -12,6 +12,36 @@ import { PromptCategory, TemplateId } from '../domain/types';
  * and validation for AutoPrompter settings.
  */
 export class WorkspaceConfigurationRepository implements IConfigurationRepository, IConfigurationService {
+    /**
+     * Adds a new prompt template
+     * @param template The template to add
+     */
+    async createPromptTemplate(template: PromptTemplate): Promise<void> {
+        const config = await this.load();
+        if (config.templates.some(t => t.id === template.id)) {
+            throw new Error(`Template with ID '${template.id}' already exists`);
+        }
+        const updatedTemplates = [...config.templates, template];
+        const updatedConfig = config.withTemplates(updatedTemplates);
+        await this.save(updatedConfig);
+    }
+
+    /**
+     * Deletes a prompt template by ID
+     * @param templateId The ID of the template to delete
+     * @returns true if deleted, false if not found
+     */
+    async deletePromptTemplate(templateId: TemplateId): Promise<boolean> {
+        const config = await this.load();
+        const templateExists = config.templates.some(t => t.id === templateId);
+        if (!templateExists) {
+            return false;
+        }
+        const updatedTemplates = config.templates.filter(t => t.id !== templateId);
+        const updatedConfig = config.withTemplates(updatedTemplates);
+        await this.save(updatedConfig);
+        return true;
+    }
     private readonly configurationSection = 'autoprompter';
     private readonly watchers: Array<(config: AutoPrompterConfiguration) => void> = [];
     private watcherDisposable?: vscode.Disposable;

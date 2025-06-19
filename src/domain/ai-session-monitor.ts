@@ -1,5 +1,4 @@
-import { SessionId, AITarget } from './types';
-import { TimeInterval, DateTime } from './types';
+import { SessionId, AITarget, TimeInterval, DateTime } from '../domain/types';
 import { AIIdleDetectedEvent } from './events';
 
 export interface ChatWindow {

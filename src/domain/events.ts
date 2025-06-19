@@ -1,4 +1,4 @@
-import { DateTime, TemplateId, SessionId } from './types';
+import { DateTime, TemplateId, SessionId } from '../domain/types';
 
 export abstract class DomainEvent {
     readonly occurredOn: DateTime;

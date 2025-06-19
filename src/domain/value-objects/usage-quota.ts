@@ -1,4 +1,4 @@
-import { TimeInterval } from '../types';
+import { TimeInterval } from '../types'; // Already correct, as ../types points to domain/types
 
 /**
  * UsageQuota Value Object
