@@ -1,4 +1,4 @@
-import * as vscode from 'vscode';
+
 import { PromptScheduler, PromptTemplate, TimeInterval, RenderedPrompt } from '../domain';
 import { AITarget, PromptCategory } from '../domain/types';
 import { IPromptDeliveryService, ExecutionResult } from '../application/interfaces';
@@ -91,7 +91,6 @@ export class PromptSchedulingEngine {
      */
     schedulePrompt(
         templateId: string,
-        template: PromptTemplate,
         target: AITarget,
         delay: TimeInterval = TimeInterval.fromSeconds(0),
         priority: number = 0,
@@ -201,7 +200,7 @@ export class PromptSchedulingEngine {
         }
 
         const execution = this.executionQueue.shift()!;
-        return await this.executePrompt(execution, true);
+        return await this.executePrompt(execution);
     }
 
     /**
@@ -233,7 +232,7 @@ export class PromptSchedulingEngine {
     /**
      * Executes a single prompt
      */
-    private async executePrompt(execution: ScheduledExecution, forceExecution: boolean = false): Promise<ExecutionResult> {
+    private async executePrompt(execution: ScheduledExecution): Promise<ExecutionResult> {
         try {
             // Get the template (in a real implementation, this would come from a template service)
             const template = await this.getTemplate(execution.templateId);
@@ -393,7 +392,7 @@ export class PromptSchedulingEngine {
     private async getTemplate(templateId: string): Promise<PromptTemplate | null> {
         // In a real implementation, this would fetch from a template service
         // For now, return a basic template
-        const { PromptTemplate: PT, TemplateVariable } = await import('../domain/value-objects');
+        const { PromptTemplate: PT } = await import('../domain/value-objects');
         
         return new PT(
             templateId,

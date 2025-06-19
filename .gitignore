@@ -10,3 +10,6 @@ dist/
 coverage/
 .nyc_output/
 .eslintcache
+.cursor
+.github
+ai-toolkit-files

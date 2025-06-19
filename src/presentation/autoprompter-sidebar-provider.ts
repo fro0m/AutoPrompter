@@ -9,8 +9,7 @@ import {
     IUIStateManager,
     WebViewMessage,
     WebViewResponse,
-    WebViewMessageType,
-    UIState
+    WebViewMessageType
 } from './interfaces';
 
 /**
@@ -43,9 +42,7 @@ export class AutoPrompterSidebarProvider implements ISidebarProvider {
      * Resolves the webview view
      */
     public resolveWebviewView(
-        webviewView: vscode.WebviewView,
-        context: vscode.WebviewViewResolveContext,
-        cancellationToken: vscode.CancellationToken
+        webviewView: vscode.WebviewView
     ): void {
         this._view = webviewView;
 
@@ -90,7 +87,6 @@ export class AutoPrompterSidebarProvider implements ISidebarProvider {
      * Updates the configuration displayed in the sidebar
      */
     public async updateConfiguration(config: AutoPrompterConfiguration): Promise<void> {
-        const state = this.uiStateManager.getState();
         this.uiStateManager.updateState({
             isAutomationEnabled: config.isEnabled,
             scheduleInterval: config.schedule.intervalMs,
@@ -164,13 +160,13 @@ export class AutoPrompterSidebarProvider implements ISidebarProvider {
                     return await this.handleGetTemplates();
 
                 case WebViewMessageType.ADD_TEMPLATE:
-                    return await this.handleAddTemplate(message.payload);
+                    return await this.handleAddTemplate();
 
                 case WebViewMessageType.UPDATE_TEMPLATE:
-                    return await this.handleUpdateTemplate(message.payload);
+                    return await this.handleUpdateTemplate();
 
                 case WebViewMessageType.DELETE_TEMPLATE:
-                    return await this.handleDeleteTemplate(message.payload);
+                    return await this.handleDeleteTemplate();
 
                 case WebViewMessageType.GET_STATUS:
                     return await this.handleGetStatus();
@@ -308,19 +304,19 @@ export class AutoPrompterSidebarProvider implements ISidebarProvider {
         };
     }
 
-    private async handleAddTemplate(payload: any): Promise<WebViewResponse> {
+    private async handleAddTemplate(): Promise<WebViewResponse> {
         // Implementation would create a new template
         // For now, return placeholder
         return { success: true };
     }
 
-    private async handleUpdateTemplate(payload: any): Promise<WebViewResponse> {
+    private async handleUpdateTemplate(): Promise<WebViewResponse> {
         // Implementation would update an existing template
         // For now, return placeholder
         return { success: true };
     }
 
-    private async handleDeleteTemplate(payload: any): Promise<WebViewResponse> {
+    private async handleDeleteTemplate(): Promise<WebViewResponse> {
         // Implementation would delete a template
         // For now, return placeholder
         return { success: true };

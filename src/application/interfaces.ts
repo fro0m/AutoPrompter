@@ -95,6 +95,6 @@ export interface ICodeContextService {
  * Service interface for template selection
  */
 export interface ITemplateSelectionService {
-    selectBestTemplate(context: CodeContext): Promise<PromptTemplate | null>;
+    selectBestTemplate(): Promise<PromptTemplate | null>;
     getAvailableTemplates(): Promise<PromptTemplate[]>;
 }

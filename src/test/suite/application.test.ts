@@ -2,7 +2,6 @@ import * as assert from 'assert';
 import { 
     AutomatedPromptingUseCase,
     ConfigurationManagementUseCase,
-    ExecutionResult,
     DeliveryResult,
     CodeContext,
     IPromptDeliveryService,
@@ -20,7 +19,7 @@ import {
     PromptCategory,
     TemplateId,
     AITarget,
-    SessionState,
+
     AISessionState,
     DateTime
 } from '../../domain';
@@ -139,7 +138,7 @@ class MockTemplateSelectionService implements ITemplateSelectionService {
         this.templates = templates;
     }
 
-    async selectBestTemplate(context: CodeContext): Promise<PromptTemplate | null> {
+    async selectBestTemplate(): Promise<PromptTemplate | null> {
         return this.templates.length > 0 ? this.templates[0] : null;
     }
 

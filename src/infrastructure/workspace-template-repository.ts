@@ -2,10 +2,8 @@ import * as vscode from 'vscode';
 import { PromptTemplate, TemplateVariable } from '../domain/value-objects';
 import { TemplateId, PromptCategory } from '../domain/types';
 import { 
-    ITemplateRepository, 
-    TemplateSearchCriteria, 
-    TemplateMetadata, 
-    TemplateStats 
+    ITemplateRepository,
+    TemplateMetadata
 } from '../application/template-repository-interface';
 
 /**
@@ -30,7 +28,7 @@ interface SerializableTemplate {
 export class WorkspaceTemplateRepository implements ITemplateRepository {
 
     // ITemplateSelectionService implementation
-    async selectBestTemplate(context: any): Promise<PromptTemplate | null> {
+    async selectBestTemplate(): Promise<PromptTemplate | null> {
         // For now, just return the first available template as a stub
         const templates = await this.findAll();
         return templates.length > 0 ? templates[0] : null;
@@ -67,50 +65,14 @@ export class WorkspaceTemplateRepository implements ITemplateRepository {
         return this.templates.get(id) || null;
     }
 
-    async findByCriteria(criteria: TemplateSearchCriteria): Promise<PromptTemplate[]> {
-        await this.ensureInitialized();
-        const templates = Array.from(this.templates.values());
 
-        return templates.filter(template => {
-            if (criteria.category && template.category !== criteria.category) {
-                return false;
-            }
-
-            if (criteria.name && !template.name.toLowerCase().includes(criteria.name.toLowerCase())) {
-                return false;
-            }
-
-            if (criteria.contentContains && !template.content.toLowerCase().includes(criteria.contentContains.toLowerCase())) {
-                return false;
-            }
-
-            if (criteria.tags && criteria.tags.length > 0) {
-                const templateMetadata = this.metadata.get(template.id);
-                if (!templateMetadata) {
-                    return false;
-                }
-                const hasAllTags = criteria.tags.every(tag => 
-                    templateMetadata.tags.some(templateTag => 
-                        templateTag.toLowerCase().includes(tag.toLowerCase())
-                    )
-                );
-                if (!hasAllTags) {
-                    return false;
-                }
-            }
-
-            return true;
-        });
-    }
 
     async findAll(): Promise<PromptTemplate[]> {
         await this.ensureInitialized();
         return Array.from(this.templates.values());
     }
 
-    async findByCategory(category: PromptCategory): Promise<PromptTemplate[]> {
-        return this.findByCriteria({ category });
-    }
+
 
     async save(template: PromptTemplate): Promise<void> {
         await this.ensureInitialized();
@@ -161,134 +123,19 @@ export class WorkspaceTemplateRepository implements ITemplateRepository {
         return this.templates.has(id);
     }
 
-    async getMetadata(id: TemplateId): Promise<TemplateMetadata | null> {
-        await this.ensureInitialized();
-        return this.metadata.get(id) || null;
-    }
 
-    async updateMetadata(id: TemplateId, metadataUpdate: Partial<TemplateMetadata>): Promise<void> {
-        await this.ensureInitialized();
-        
-        const existingMetadata = this.metadata.get(id);
-        if (!existingMetadata) {
-            throw new Error(`Template metadata not found: ${id}`);
-        }
-        
-        const updatedMetadata: TemplateMetadata = {
-            ...existingMetadata,
-            ...metadataUpdate,
-            id, // Ensure ID cannot be changed
-            updatedAt: new Date()
-        };
-        
-        this.metadata.set(id, updatedMetadata);
-        await this.saveToWorkspace();
-    }
 
-    async recordUsage(id: TemplateId): Promise<void> {
-        await this.ensureInitialized();
-        
-        const metadata = this.metadata.get(id);
-        if (metadata) {
-            metadata.usageCount++;
-            metadata.lastUsed = new Date();
-            await this.saveToWorkspace();
-        }
-    }
 
-    async getStatistics(): Promise<TemplateStats> {
-        await this.ensureInitialized();
-        
-        const templates = Array.from(this.templates.values());
-        const templatesByCategory = new Map<PromptCategory, number>();
-        
-        // Count templates by category
-        for (const template of templates) {
-            const count = templatesByCategory.get(template.category) || 0;
-            templatesByCategory.set(template.category, count + 1);
-        }
-        
-        // Get most used templates
-        const templatesWithUsage = templates.map(template => {
-            const metadata = this.metadata.get(template.id);
-            return {
-                template,
-                usageCount: metadata?.usageCount || 0,
-                lastUsed: metadata?.lastUsed
-            };
-        });
-        
-        const mostUsedTemplates = templatesWithUsage
-            .sort((a, b) => b.usageCount - a.usageCount)
-            .slice(0, 5)
-            .map(({ template, usageCount }) => ({ template, usageCount }));
-        
-        const recentlyUsedTemplates = templatesWithUsage
-            .filter(({ lastUsed }) => lastUsed)
-            .sort((a, b) => (b.lastUsed!.getTime() - a.lastUsed!.getTime()))
-            .slice(0, 5)
-            .map(({ template, lastUsed }) => ({ template, lastUsed: lastUsed! }));
-        
-        return {
-            totalTemplates: templates.length,
-            templatesByCategory,
-            mostUsedTemplates,
-            recentlyUsedTemplates
-        };
-    }
 
-    async exportTemplates(): Promise<Array<{ template: PromptTemplate; metadata: TemplateMetadata }>> {
-        await this.ensureInitialized();
-        
-        const result: Array<{ template: PromptTemplate; metadata: TemplateMetadata }> = [];
-        
-        for (const template of this.templates.values()) {
-            const metadata = this.metadata.get(template.id);
-            if (metadata) {
-                result.push({ template, metadata });
-            }
-        }
-        
-        return result;
-    }
 
-    async importTemplates(data: Array<{ template: PromptTemplate; metadata?: Partial<TemplateMetadata> }>): Promise<void> {
-        await this.ensureInitialized();
-        
-        for (const { template, metadata } of data) {
-            // Check if template already exists
-            if (await this.exists(template.id)) {
-                const existingMetadata = await this.getMetadata(template.id);
-                if (existingMetadata?.isBuiltIn) {
-                    console.warn(`Skipping import of built-in template: ${template.id}`);
-                    continue;
-                }
-            }
-            
-            await this.save(template);
-            
-            if (metadata) {
-                await this.updateMetadata(template.id, metadata);
-            }
-        }
-    }
 
-    async getBuiltInTemplates(): Promise<PromptTemplate[]> {
-        await this.ensureInitialized();
-        
-        const builtInTemplates: PromptTemplate[] = [];
-        
-        for (const [id, metadata] of this.metadata) {
-            if (metadata.isBuiltIn) {
-                const template = this.templates.get(id);
-                if (template) {
-                    builtInTemplates.push(template);
-                }
-            }
-        }
-        
-        return builtInTemplates;
-    }
+
+
+
+
+
+
+
 
     async resetToDefaults(): Promise<void> {
         // Clear existing data

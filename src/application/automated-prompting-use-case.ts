@@ -49,7 +49,7 @@ export class AutomatedPromptingUseCase {
             }
 
             // Select appropriate template for the context
-            const template = await this.selectTemplate(context);
+            const template = await this.selectTemplate();
             if (!template) {
                 return ExecutionResult.skipped('No suitable template found');
             }
@@ -127,9 +127,9 @@ export class AutomatedPromptingUseCase {
      * @param context Current code context
      * @returns Selected prompt template or null if none suitable
      */
-    private async selectTemplate(context: CodeContext): Promise<PromptTemplate | null> {
+    private async selectTemplate(): Promise<PromptTemplate | null> {
         try {
-            return await this.templateSelectionService.selectBestTemplate(context);
+            return await this.templateSelectionService.selectBestTemplate();
         } catch (error) {
             console.warn('Failed to select template:', error);
             return null;

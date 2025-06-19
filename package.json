@@ -1,15 +1,42 @@
 {
     "name": "autoprompter",
     "displayName": "AutoPrompter",
-    "description": "Automated AI prompt injection for continuous coding assistance",
+    "description": "Automated AI prompt injection for continuous coding assistance with GitHub Copilot and Cursor Chat",
     "version": "1.0.0",
     "publisher": "autoprompter",
+    "icon": "icon.png",
     "engines": {
-        "vscode": "^1.74.0"
+        "vscode": "^1.101.0"
     },
     "categories": [
+        "Machine Learning",
         "Other"
     ],
+    "keywords": [
+        "ai",
+        "copilot",
+        "cursor",
+        "automation",
+        "prompting",
+        "assistant",
+        "productivity",
+        "chat",
+        "coding",
+        "continuous"
+    ],
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/autoprompter/autoprompter.git"
+    },
+    "homepage": "https://github.com/autoprompter/autoprompter",
+    "bugs": {
+        "url": "https://github.com/autoprompter/autoprompter/issues"
+    },
+    "license": "MIT",
+    "galleryBanner": {
+        "color": "#007ACC",
+        "theme": "dark"
+    },
     "activationEvents": [
         "onStartupFinished"
     ],
@@ -60,7 +87,7 @@
         }
     },
     "scripts": {
-        "vscode:prepublish": "npm run compile",
+        "vscode:prepublish": "",
         "compile": "tsc -p ./",
         "watch": "tsc -watch -p ./",
         "pretest": "npm run compile && npm run lint",

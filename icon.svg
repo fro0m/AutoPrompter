@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="128" height="128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#007ACC;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#1F8CE6;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Background circle -->
+  <circle cx="64" cy="64" r="58" fill="url(#gradient)" stroke="#005A9E" stroke-width="2"/>
+  
+  <!-- Chat bubble -->
+  <path d="M30 35 L90 35 Q98 35 98 43 L98 65 Q98 73 90 73 L50 73 L35 85 L45 73 L38 73 Q30 73 30 65 L30 43 Q30 35 38 35 Z" 
+        fill="white" opacity="0.9"/>
+  
+  <!-- AI brain/circuit pattern inside bubble -->
+  <circle cx="50" cy="50" r="3" fill="#007ACC"/>
+  <circle cx="70" cy="50" r="3" fill="#007ACC"/>
+  <circle cx="60" cy="60" r="3" fill="#007ACC"/>
+  
+  <!-- Connection lines -->
+  <line x1="50" y1="50" x2="60" y2="60" stroke="#007ACC" stroke-width="2"/>
+  <line x1="70" y1="50" x2="60" y2="60" stroke="#007ACC" stroke-width="2"/>
+  
+  <!-- Automation arrow/refresh icon -->
+  <path d="M75 85 Q85 85 85 95 Q85 105 75 105 L65 105" 
+        stroke="white" stroke-width="3" fill="none" stroke-linecap="round"/>
+  <path d="M68 100 L65 105 L68 110" 
+        stroke="white" stroke-width="3" fill="none" stroke-linecap="round"/>
+  
+  <!-- Second automation arrow -->
+  <path d="M53 105 Q43 105 43 95 Q43 85 53 85 L63 85" 
+        stroke="white" stroke-width="3" fill="none" stroke-linecap="round"/>
+  <path d="M60 80 L63 85 L60 90" 
+        stroke="white" stroke-width="3" fill="none" stroke-linecap="round"/>
+</svg> 

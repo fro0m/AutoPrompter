@@ -1,6 +1,6 @@
-import { ScheduleId, SessionState, AITarget, TimeInterval, DateTime } from '../domain/types';
+import { ScheduleId, AITarget, TimeInterval, DateTime } from '../domain/types';
 import { PromptSentEvent } from './events';
-import { PromptTemplate, RenderedPrompt } from './value-objects';
+import { PromptTemplate } from './value-objects';
 
 export interface ScheduledPrompt {
     id: string;
@@ -93,6 +93,10 @@ export class PromptScheduler {
 
     clearEvents(): void {
         this.events.length = 0;
+    }
+
+    getId(): ScheduleId {
+        return this.scheduleId;
     }
 
     private calculateNextExecution(): DateTime {

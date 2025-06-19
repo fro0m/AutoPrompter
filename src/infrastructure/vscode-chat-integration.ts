@@ -1,4 +1,4 @@
-import * as vscode from 'vscode';
+
 import { RenderedPrompt } from '../domain';
 import { AITarget } from '../domain/types';
 import { IPromptDeliveryService, DeliveryResult } from '../application/interfaces';
@@ -18,7 +18,7 @@ import { GitHubCopilotIntegration } from './github-copilot-integration';
  * The actual implementation would depend on Cursor's extension API.
  */
 class CursorChatIntegration implements IChatProvider {
-    constructor(private readonly config: ChatProviderConfig = {}) {}
+    constructor() {}
 
     getName(): string {
         return 'Cursor Chat';
@@ -65,8 +65,8 @@ export class VSCodeChatIntegration implements IPromptDeliveryService {
 
         // Initialize chat providers
         this.providers = new Map();
-        this.providers.set(AITarget.GitHub, new GitHubCopilotIntegration(this.config));
-        this.providers.set(AITarget.Cursor, new CursorChatIntegration(this.config));
+        this.providers.set(AITarget.GitHub, new GitHubCopilotIntegration());
+        this.providers.set(AITarget.Cursor, new CursorChatIntegration());
     }
 
     /**
@@ -179,6 +179,7 @@ export class VSCodeChatIntegration implements IPromptDeliveryService {
         
         return Promise.race([
             provider.sendMessage(message),
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
             new Promise<ChatResponse>((resolve, reject) => {
                 setTimeout(() => {
                     reject(new Error(`Timeout after ${timeout}ms`));

@@ -1,0 +1,48 @@
+# Source files (exclude all, keep only compiled output)
+src/**
+!src/global.d.ts
+
+# Build and config files
+tsconfig.json
+.eslintrc.js
+.eslintrc.json
+
+# Development and test files
+.vscode/**
+.vscode-test/**
+.vscode-test.backup/**
+.cursor/**
+.cursor.backup/**
+test/**
+**/*.test.ts
+**/*.test.js
+**/test/**
+
+# Dependencies
+node_modules/**
+
+# Git and version control
+.git/**
+.gitignore
+
+# Documentation and config (keep only essential)
+ai-toolkit-files/**
+autoprompter.code-workspace
+package-lock.json
+
+# Build artifacts to exclude
+dist/**
+*.vsix
+
+# Assets to exclude (keep only icon.png)
+icon.svg
+*.map
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+*.log
+
+# Backup files
+*.backup/**
+**/*.backup 

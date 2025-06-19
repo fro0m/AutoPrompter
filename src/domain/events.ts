@@ -29,14 +29,6 @@ export class AIIdleDetectedEvent extends DomainEvent {
     }
 }
 
-export class ConfigurationChangedEvent extends DomainEvent {
-    constructor(
-        public readonly changes: Record<string, any>
-    ) {
-        super();
-    }
-}
-
 export class SessionStateChangedEvent extends DomainEvent {
     constructor(
         public readonly sessionId: SessionId,

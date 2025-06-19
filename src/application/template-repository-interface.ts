@@ -6,9 +6,9 @@ import { TemplateId, PromptCategory } from '../domain/types';
  */
 export interface TemplateSearchCriteria {
     category?: PromptCategory;
-    name?: string;
-    contentContains?: string;
+    namePattern?: string;
     tags?: string[];
+    isBuiltIn?: boolean;
 }
 
 /**
@@ -30,12 +30,7 @@ export interface TemplateMetadata {
 /**
  * Template statistics for analytics
  */
-export interface TemplateStats {
-    totalTemplates: number;
-    templatesByCategory: Map<PromptCategory, number>;
-    mostUsedTemplates: Array<{ template: PromptTemplate; usageCount: number }>;
-    recentlyUsedTemplates: Array<{ template: PromptTemplate; lastUsed: Date }>;
-}
+
 
 /**
  * Repository interface for managing prompt templates
@@ -47,19 +42,9 @@ export interface ITemplateRepository {
     findById(id: TemplateId): Promise<PromptTemplate | null>;
 
     /**
-     * Finds all templates matching the search criteria
-     */
-    findByCriteria(criteria: TemplateSearchCriteria): Promise<PromptTemplate[]>;
-
-    /**
      * Gets all templates
      */
     findAll(): Promise<PromptTemplate[]>;
-
-    /**
-     * Gets templates by category
-     */
-    findByCategory(category: PromptCategory): Promise<PromptTemplate[]>;
 
     /**
      * Saves a template (create or update)
@@ -75,41 +60,6 @@ export interface ITemplateRepository {
      * Checks if a template exists
      */
     exists(id: TemplateId): Promise<boolean>;
-
-    /**
-     * Gets template metadata
-     */
-    getMetadata(id: TemplateId): Promise<TemplateMetadata | null>;
-
-    /**
-     * Updates template metadata
-     */
-    updateMetadata(id: TemplateId, metadata: Partial<TemplateMetadata>): Promise<void>;
-
-    /**
-     * Records template usage for analytics
-     */
-    recordUsage(id: TemplateId): Promise<void>;
-
-    /**
-     * Gets template statistics
-     */
-    getStatistics(): Promise<TemplateStats>;
-
-    /**
-     * Exports all templates
-     */
-    exportTemplates(): Promise<Array<{ template: PromptTemplate; metadata: TemplateMetadata }>>;
-
-    /**
-     * Imports templates
-     */
-    importTemplates(data: Array<{ template: PromptTemplate; metadata?: Partial<TemplateMetadata> }>): Promise<void>;
-
-    /**
-     * Gets built-in templates
-     */
-    getBuiltInTemplates(): Promise<PromptTemplate[]>;
 
     /**
      * Resets to default templates

@@ -1,6 +1,6 @@
 import * as assert from 'assert';
 import * as vscode from 'vscode';
-import { AITarget, RenderedPrompt, AutoPrompterConfiguration, PromptTemplate, TemplateVariable, PromptCategory } from '../../domain';
+import { AITarget, RenderedPrompt, AutoPrompterConfiguration, PromptCategory } from '../../domain';
 import { 
     VSCodeChatIntegration, 
     GitHubCopilotIntegration,
@@ -83,13 +83,7 @@ suite('Infrastructure Layer Tests', () => {
         });
 
         test('should handle configuration options', () => {
-            const config = {
-                timeout: 60000,
-                retryAttempts: 5,
-                retryDelay: 2000
-            };
-            
-            const configuredIntegration = new GitHubCopilotIntegration(config);
+            const configuredIntegration = new GitHubCopilotIntegration();
             assert.strictEqual(configuredIntegration.getName(), 'GitHub Copilot Chat');
         });
     });
@@ -239,7 +233,7 @@ suite('Infrastructure Layer Tests', () => {
                     };
                     return configs[key] ?? defaultValue;
                 },
-                update: async (key: string, value: any, target?: any) => {
+                update: async (key: string, value: any) => {
                     console.log(`Mock config update: ${key} = ${JSON.stringify(value)}`);
                     return Promise.resolve();
                 }
@@ -280,7 +274,7 @@ suite('Infrastructure Layer Tests', () => {
         test('should validate configuration before saving', async () => {
             // Create invalid configuration - should fail during constructor
             try {
-                const invalidConfig = new AutoPrompterConfiguration(
+                new AutoPrompterConfiguration(
                     [], // No templates
                     {
                         intervalMs: 500, // Too small
@@ -300,9 +294,8 @@ suite('Infrastructure Layer Tests', () => {
         });
 
         test('should register configuration watchers', () => {
-            let callbackCalled = false;
-            const callback = (config: AutoPrompterConfiguration) => {
-                callbackCalled = true;
+            const callback = () => {
+                // Callback implementation for test
             };
 
             repository.watch(callback);
@@ -322,25 +315,8 @@ suite('Infrastructure Layer Tests', () => {
         });
 
         test('should handle serialization and deserialization of templates', async () => {
-            const template = new PromptTemplate(
-                'test-template',
-                'Test Template',
-                 'Test content with {{variable}}',
-                PromptCategory.CodeReview,
-                [new TemplateVariable('variable', 'string', 'default')]
-            );
 
-            const config = new AutoPrompterConfiguration(
-                [template],
-                {
-                    intervalMs: 300000,
-                    isActive: true,
-                    maxRetries: 3
-                },
-                true,
-                100,
-                ['github']
-            );
+
 
             // Mock the configuration to return our template data
             const originalMockGet = mockWorkspaceConfig.get;

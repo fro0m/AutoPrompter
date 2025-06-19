@@ -1,4 +1,4 @@
-import { PromptTemplate, TemplateVariable, RenderContext, RenderedPrompt } from '../domain/value-objects';
+import { PromptTemplate, TemplateVariable, RenderContext } from '../domain/value-objects';
 import { CodeContext, ICodeContextService, ITemplateSelectionService } from '../application/interfaces';
 import { TemplateId, PromptCategory } from '../domain/types';
 import { CodeContextAnalyzer } from './code-context-analyzer';
@@ -34,7 +34,7 @@ export class ContextAwarePromptGenerator implements ICodeContextService, ITempla
         suggestedTemplates: TemplateId[];
     }> {
         const context = await this.getCurrentContext();
-        const suggestedTemplateIds = await this.getSuggestedTemplateIds(context);
+        const suggestedTemplateIds = await this.getSuggestedTemplateIds();
 
         return {
             relevantContext: context,
@@ -45,8 +45,8 @@ export class ContextAwarePromptGenerator implements ICodeContextService, ITempla
     /**
      * Selects the best template based on the current context
      */
-    async selectBestTemplate(context: CodeContext): Promise<PromptTemplate | null> {
-        const suggestedIds = await this.getSuggestedTemplateIds(context);
+    async selectBestTemplate(): Promise<PromptTemplate | null> {
+        const suggestedIds = await this.getSuggestedTemplateIds();
         
         if (suggestedIds.length === 0) {
             return this.getDefaultTemplate();
@@ -79,7 +79,7 @@ export class ContextAwarePromptGenerator implements ICodeContextService, ITempla
         context: CodeContext;
     }> {
         const context = await this.getCurrentContext();
-        const template = customTemplate || await this.selectBestTemplate(context);
+        const template = customTemplate || await this.selectBestTemplate();
         
         if (!template) {
             throw new Error('No suitable template found for current context');
@@ -136,7 +136,7 @@ export class ContextAwarePromptGenerator implements ICodeContextService, ITempla
     /**
      * Gets suggested template IDs based on context
      */
-    private async getSuggestedTemplateIds(context: CodeContext): Promise<TemplateId[]> {
+    private async getSuggestedTemplateIds(): Promise<TemplateId[]> {
         const analysis = await this.codeAnalyzer.analyzeCodeForPrompting();
         return analysis.suggestedTemplates;
     }
@@ -428,10 +428,5 @@ Please provide:
         return this.defaultTemplates.find(t => t.id === templateId) || null;
     }
 
-    /**
-     * Updates the code analyzer instance
-     */
-    setCodeAnalyzer(analyzer: CodeContextAnalyzer): void {
-        // This would be used for dependency injection in tests
-    }
+
 }

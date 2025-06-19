@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { IChatProvider, ChatResponse, ChatProviderUnavailableError, ChatProviderConfig } from './chat-interfaces';
+import { IChatProvider, ChatResponse, ChatProviderUnavailableError } from './chat-interfaces';
 
 /**
  * GitHub Copilot Chat Integration
@@ -8,15 +8,7 @@ import { IChatProvider, ChatResponse, ChatProviderUnavailableError, ChatProvider
  * and receive responses through VS Code's extension API
  */
 export class GitHubCopilotIntegration implements IChatProvider {
-    private readonly config: ChatProviderConfig;
-
-    constructor(config: ChatProviderConfig = {}) {
-        this.config = {
-            timeout: 30000, // 30 seconds
-            retryAttempts: 3,
-            retryDelay: 1000, // 1 second
-            ...config
-        };
+    constructor() {
     }
 
     getName(): string {
@@ -153,26 +145,7 @@ export class GitHubCopilotIntegration implements IChatProvider {
         }
     }
 
-    /**
-     * Attempts to get the Copilot Chat API
-     * Note: This is a placeholder for when official API becomes available
-     */
-    private async getCopilotChatAPI(): Promise<any> {
-        const copilotExtension = vscode.extensions.getExtension('GitHub.copilot-chat');
-        if (!copilotExtension?.isActive) {
-            throw new ChatProviderUnavailableError('GitHub Copilot Chat extension not active');
-        }
 
-        // This would access the actual API when available
-        // For now, return a mock API
-        return {
-            sendChatMessage: async (options: { message: string; location?: string }) => {
-                // This would be the real implementation
-                console.log('Sending chat message:', options);
-                return { success: true };
-            }
-        };
-    }
 
     /**
      * Gets information about the current Copilot Chat state

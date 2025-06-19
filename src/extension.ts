@@ -7,9 +7,6 @@ import {
     VSCodeChatIntegration,
     PromptScheduler,
     AISessionMonitor,
-    AutoPrompterSession,
-    AutoPrompterConfiguration,
-    SessionState,
     PromptSchedulingEngine,
     AISessionMonitoringService,
     WorkspaceTemplateRepository
@@ -59,19 +56,6 @@ export async function activate(context: vscode.ExtensionContext) {
         });
         
         const sessionMonitor = new AISessionMonitor('main-session');
-        const session = new AutoPrompterSession('main', SessionState.Inactive, 
-            new AutoPrompterConfiguration(
-                [], // templates
-                { // schedule
-                    intervalMs: 300000,
-                    isActive: false,
-                    maxRetries: 3
-                },
-                false, // isEnabled
-                50, // maxDailyPrompts
-                ['github'] // enabledTargets
-            )
-        );
         
         // Initialize application layer use cases
         const configUseCase = new ConfigurationManagementUseCase(configRepository);

@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { AISessionMonitor, AISessionState } from '../domain/ai-session-monitor';
 import { AITarget } from '../domain/types';
-import { TimeInterval, DateTime } from '../domain/types';
+import { TimeInterval } from '../domain/types';
 
 /**
  * Chat activity monitor for tracking chat window states
@@ -208,7 +208,7 @@ export class AISessionMonitoringService {
 
         // Monitor text document changes
         this.disposables.push(
-            vscode.workspace.onDidChangeTextDocument((event) => {
+            vscode.workspace.onDidChangeTextDocument(() => {
                 this.workspaceActivity.lastFileEdit = new Date();
                 this.workspaceActivity.isUserActive = true;
                 this.registerActivity();
@@ -217,7 +217,7 @@ export class AISessionMonitoringService {
 
         // Monitor text editor selection changes
         this.disposables.push(
-            vscode.window.onDidChangeTextEditorSelection((event) => {
+            vscode.window.onDidChangeTextEditorSelection(() => {
                 this.workspaceActivity.lastSelection = new Date();
                 this.workspaceActivity.isUserActive = true;
                 this.registerActivity();
