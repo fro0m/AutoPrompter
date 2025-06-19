@@ -70,12 +70,10 @@ export interface IPromptDeliveryService {
  * Service interface for configuration management
  */
 export interface IConfigurationService {
-    getPromptTemplates(): Promise<PromptTemplate[]>;
-    updatePromptTemplate(templateId: TemplateId, template: PromptTemplate): Promise<void>;
-    createPromptTemplate(template: PromptTemplate): Promise<void>;
-    deletePromptTemplate(templateId: TemplateId): Promise<boolean>;
-    getScheduleInterval(): Promise<TimeInterval>;
-    setScheduleInterval(interval: TimeInterval): Promise<void>;
+    getPromptText(): Promise<string>;
+    setPromptText(promptText: string): Promise<void>;
+    getMinimalInterval(): Promise<TimeInterval>;
+    setMinimalInterval(interval: TimeInterval): Promise<void>;
     isAutomationEnabled(): Promise<boolean>;
     setAutomationEnabled(enabled: boolean): Promise<void>;
 }
@@ -87,7 +85,7 @@ export interface ICodeContextService {
     getCurrentContext(): Promise<CodeContext>;
     analyzeCodeForPrompting(): Promise<{
         relevantContext: CodeContext;
-        suggestedTemplates: TemplateId[];
+        suggestedPromptEnhancements: string[];
     }>;
 }
 
@@ -97,4 +95,13 @@ export interface ICodeContextService {
 export interface ITemplateSelectionService {
     selectBestTemplate(): Promise<PromptTemplate | null>;
     getAvailableTemplates(): Promise<PromptTemplate[]>;
+}
+
+/**
+ * Simple prompt rendering result for text-based prompts
+ */
+export interface SimplePrompt {
+    content: string;
+    timestamp: Date;
+    context?: CodeContext;
 }

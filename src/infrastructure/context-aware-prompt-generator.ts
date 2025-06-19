@@ -31,14 +31,38 @@ export class ContextAwarePromptGenerator implements ICodeContextService, ITempla
      */
     async analyzeCodeForPrompting(): Promise<{
         relevantContext: CodeContext;
-        suggestedTemplates: TemplateId[];
+        suggestedPromptEnhancements: string[];
     }> {
         const context = await this.getCurrentContext();
-        const suggestedTemplateIds = await this.getSuggestedTemplateIds();
+        const suggestions: string[] = [];
+
+        // Analyze context and suggest prompt enhancements
+        if (context.currentLanguage) {
+            suggestions.push(`Consider focusing on ${context.currentLanguage}-specific best practices`);
+        }
+
+        if (context.selectedText && context.selectedText.length > 100) {
+            suggestions.push('Since you have selected code, focus the review on that specific section');
+        }
+
+        if (context.gitBranch && context.gitBranch !== 'main' && context.gitBranch !== 'master') {
+            suggestions.push('Consider asking about the changes specific to this feature branch');
+        }
+
+        if (context.projectType) {
+            suggestions.push(`Tailor suggestions for ${context.projectType} project patterns`);
+        }
+
+        // Default suggestions if no specific context
+        if (suggestions.length === 0) {
+            suggestions.push('Ask for general code quality improvements');
+            suggestions.push('Request security best practices review');
+            suggestions.push('Inquire about performance optimizations');
+        }
 
         return {
             relevantContext: context,
-            suggestedTemplates: suggestedTemplateIds
+            suggestedPromptEnhancements: suggestions
         };
     }
 

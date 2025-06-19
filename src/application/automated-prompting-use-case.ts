@@ -1,12 +1,12 @@
-import { PromptScheduler, AISessionMonitor, PromptTemplate, RenderedPrompt } from '../domain';
-import { AITarget } from '../domain/types';
+import { PromptScheduler, AISessionMonitor, RenderedPrompt } from '../domain';
+import { AITarget, TemplateId } from '../domain/types';
 import { 
     ExecutionResult, 
     CodeContext,
     IPromptDeliveryService, 
     IConfigurationService,
     ICodeContextService,
-    ITemplateSelectionService
+    SimplePrompt
 } from './interfaces';
 
 /**
@@ -15,9 +15,8 @@ import {
  * Orchestrates the automated prompting workflow by:
  * 1. Checking if conditions are met for prompt execution
  * 2. Gathering current code context
- * 3. Selecting appropriate prompt template
- * 4. Rendering the prompt with context
- * 5. Delivering the prompt to the AI system
+ * 3. Using the configured prompt text
+ * 4. Delivering the prompt to the AI system (GitHub Copilot)
  */
 export class AutomatedPromptingUseCase {
     constructor(
@@ -25,9 +24,57 @@ export class AutomatedPromptingUseCase {
         private readonly sessionMonitor: AISessionMonitor,
         private readonly deliveryService: IPromptDeliveryService,
         private readonly configService: IConfigurationService,
-        private readonly codeContextService: ICodeContextService,
-        private readonly templateSelectionService: ITemplateSelectionService
-    ) {}
+        private readonly codeContextService: ICodeContextService
+    ) {
+        // Set up idle trigger for immediate prompting
+        this.sessionMonitor.onIdle((sessionId, idleDuration) => {
+            this.onAIBecameIdle();
+        });
+    }
+
+    /**
+     * Called when AI session becomes idle - triggers immediate prompt if conditions are met
+     */
+    private async onAIBecameIdle(): Promise<void> {
+        try {
+            const automationEnabled = await this.configService.isAutomationEnabled();
+            if (!automationEnabled) {
+                return;
+            }
+
+            const promptText = await this.configService.getPromptText();
+            if (!promptText.trim()) {
+                return;
+            }
+
+            // Use the scheduler's triggerOnIdle to respect minimal interval
+            this.promptScheduler.triggerOnIdle(
+                promptText, 
+                AITarget.GitHub, 
+                async (scheduledPrompt) => {
+                    await this.executeScheduledPrompt(scheduledPrompt);
+                }
+            );
+        } catch (error) {
+            console.error('Error handling AI idle state:', error);
+        }
+    }
+
+    /**
+     * Executes a scheduled prompt
+     */
+    private async executeScheduledPrompt(scheduledPrompt: any): Promise<void> {
+        try {
+            const result = await this.executeAutomatedPrompting();
+            if (result.success) {
+                console.log('Automated prompt executed successfully:', result.message);
+            } else {
+                console.warn('Automated prompt execution failed:', result.message);
+            }
+        } catch (error) {
+            console.error('Error executing scheduled prompt:', error);
+        }
+    }
 
     /**
      * Executes the automated prompting workflow
@@ -41,31 +88,27 @@ export class AutomatedPromptingUseCase {
                 return ExecutionResult.skipped('Cannot execute prompt: conditions not met');
             }
 
+            // Get the configured prompt text
+            const promptText = await this.getPromptText();
+            if (!promptText) {
+                return ExecutionResult.skipped('No prompt text configured');
+            }
 
-            // Gather code context
+            // Gather code context (optional for context)
             const context = await this.gatherCodeContext();
-            if (!context) {
-                return ExecutionResult.skipped('No code context available');
-            }
 
-            // Select appropriate template for the context
-            const template = await this.selectTemplate();
-            if (!template) {
-                return ExecutionResult.skipped('No suitable template found');
-            }
+            // Create simple prompt
+            const prompt = this.createSimplePrompt(promptText, context);
 
-            // Render the prompt with context
-            const prompt = await this.renderPrompt(template, context);
+            // Convert to rendered prompt for delivery service
+            const renderedPrompt = this.convertToRenderedPrompt(prompt);
 
-            // Determine target AI system
-            const target = await this.determineTarget();
-
-            // Send the prompt to AI
-            const deliveryResult = await this.deliveryService.sendToAI(prompt, target);
+            // Send the prompt to GitHub Copilot
+            const deliveryResult = await this.deliveryService.sendToAI(renderedPrompt, AITarget.GitHub);
 
             if (deliveryResult.success) {
                 return ExecutionResult.success(
-                    `Successfully sent prompt using template "${template.name}"`,
+                    `Successfully sent prompt to AI chat`,
                     deliveryResult
                 );
             } else {
@@ -94,7 +137,7 @@ export class AutomatedPromptingUseCase {
             return false;
         }
 
-        // Check if scheduler allows execution
+        // Check if scheduler allows execution (respects minimal interval)
         const schedulerReady = this.promptScheduler.canExecute();
         if (!schedulerReady) {
             return false;
@@ -107,6 +150,19 @@ export class AutomatedPromptingUseCase {
         }
 
         return true;
+    }
+
+    /**
+     * Gets the configured prompt text
+     */
+    private async getPromptText(): Promise<string | null> {
+        try {
+            const promptText = await this.configService.getPromptText();
+            return promptText.trim() || null;
+        } catch (error) {
+            console.warn('Failed to get prompt text:', error);
+            return null;
+        }
     }
 
     /**
@@ -123,68 +179,24 @@ export class AutomatedPromptingUseCase {
     }
 
     /**
-     * Selects the best prompt template for the given context
-     * @param context Current code context
-     * @returns Selected prompt template or null if none suitable
+     * Creates a simple prompt with context
      */
-    private async selectTemplate(): Promise<PromptTemplate | null> {
-        try {
-            return await this.templateSelectionService.selectBestTemplate();
-        } catch (error) {
-            console.warn('Failed to select template:', error);
-            return null;
-        }
-    }
-
-    /**
-     * Renders a prompt template with the given context
-     * @param template The prompt template to render
-     * @param context The code context to use for rendering
-     * @returns Rendered prompt ready for delivery
-     */
-    private async renderPrompt(template: PromptTemplate, context: CodeContext): Promise<RenderedPrompt> {
-        // Create a render context from the code context
-        const renderContext = {
-            getValue: (variableName: string): string | number | boolean | undefined => {
-                switch (variableName) {
-                    case 'fileName':
-                        return context.currentFile ? context.currentFile.split('/').pop() : undefined;
-                    case 'filePath':
-                        return context.currentFile;
-                    case 'language':
-                        return context.currentLanguage;
-                    case 'selectedText':
-                        return context.selectedText;
-                    case 'workspaceRoot':
-                        return context.workspaceRoot;
-                    case 'gitBranch':
-                        return context.gitBranch;
-                    case 'projectType':
-                        return context.projectType;
-                    case 'cursorLine':
-                        return context.cursorPosition?.line;
-                    case 'cursorCharacter':
-                        return context.cursorPosition?.character;
-                    default:
-                        return undefined;
-                }
-            },
-            hasValue: (variableName: string): boolean => {
-                return renderContext.getValue(variableName) !== undefined;
-            }
+    private createSimplePrompt(promptText: string, context: CodeContext | null): SimplePrompt {
+        return {
+            content: promptText,
+            timestamp: new Date(),
+            context: context || undefined
         };
-
-        return template.render(renderContext);
     }
 
     /**
-     * Determines the target AI system for prompt delivery
-     * @returns Target AI system identifier
+     * Converts SimplePrompt to RenderedPrompt for compatibility with delivery service
      */
-    private async determineTarget(): Promise<AITarget> {
-        // For now, default to GitHub Copilot
-        // This could be made configurable in the future
-        return AITarget.GitHub;
+    private convertToRenderedPrompt(prompt: SimplePrompt): RenderedPrompt {
+        return new RenderedPrompt(
+            prompt.content,
+            'simple-text-prompt' as TemplateId // Use a default template ID for simple text prompts
+        );
     }
 
     /**
@@ -200,37 +212,43 @@ export class AutomatedPromptingUseCase {
             
             try {
                 const result = await this.executeAutomatedPrompting();
-                this.canExecutePrompt = originalCanExecute;
                 return result;
-            } catch (error) {
+            } finally {
+                // Restore original method
                 this.canExecutePrompt = originalCanExecute;
-                throw error;
             }
+        } else {
+            return await this.executeAutomatedPrompting();
         }
-
-        return this.executeAutomatedPrompting();
     }
 
     /**
-     * Gets the current execution status
-     * @returns Status information about the automated prompting system
+     * Gets the current execution status and readiness
+     * @returns Status information about prompt execution capability
      */
     async getExecutionStatus(): Promise<{
         canExecute: boolean;
         automationEnabled: boolean;
         schedulerReady: boolean;
         sessionAvailable: boolean;
+        hasPromptText: boolean;
         lastExecution?: Date;
     }> {
         const automationEnabled = await this.configService.isAutomationEnabled();
         const schedulerReady = this.promptScheduler.canExecute();
         const sessionAvailable = this.sessionMonitor.isAvailableForPrompt();
-
+        const promptText = await this.getPromptText();
+        const hasPromptText = !!promptText;
+        
+        const canExecute = automationEnabled && schedulerReady && sessionAvailable && hasPromptText;
+        
         return {
-            canExecute: automationEnabled && schedulerReady && sessionAvailable,
+            canExecute,
             automationEnabled,
             schedulerReady,
-            sessionAvailable
+            sessionAvailable,
+            hasPromptText,
+            // lastExecution would be available from scheduler events in real implementation
         };
     }
 }

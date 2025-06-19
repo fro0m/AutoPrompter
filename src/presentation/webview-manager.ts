@@ -58,59 +58,34 @@ export class WebviewManager implements IWebviewManager {
                             </div>
 
                             <div class="control-group">
-                                <label for="intervalSelect">Interval</label>
+                                <label for="intervalSelect">Minimal Interval</label>
                                 <select id="intervalSelect" class="select-input">
                                     <option value="60000">1 minute</option>
-                                    <option value="300000" selected>5 minutes</option>
+                                    <option value="120000">2 minutes</option>
+                                    <option value="300000">5 minutes</option>
                                     <option value="600000">10 minutes</option>
-                                    <option value="1800000">30 minutes</option>
-                                    <option value="3600000">1 hour</option>
                                 </select>
                             </div>
 
                             <div class="button-group">
                                 <button id="executeNowBtn" class="btn btn-primary">Execute Now</button>
-                                <button id="testConnectionBtn" class="btn btn-secondary">Test Connection</button>
                             </div>
                         </section>
 
-                        <!-- Template Selection -->
-                        <section class="template-section">
-                            <h2>Prompt Templates</h2>
-                            <div class="template-selector">
-                                <select id="templateSelect" class="select-input">
-                                    <option value="">Select Template...</option>
-                                </select>
-                                <button id="addTemplateBtn" class="btn btn-small">Add</button>
-                            </div>
-                            <div class="template-list" id="templateList">
-                                <!-- Templates will be populated here -->
-                            </div>
-                        </section>
-
-                        <!-- Configuration -->
-                        <section class="config-section">
-                            <h2>Configuration</h2>
-                            <div class="config-group">
-                                <label for="maxDailyPrompts">Max Daily Prompts</label>
-                                <input type="number" id="maxDailyPrompts" class="number-input" min="1" max="1000" value="50">
-                            </div>
-                            <div class="config-group">
-                                <label>Enabled Targets</label>
-                                <div class="checkbox-group">
-                                    <label class="checkbox-label">
-                                        <input type="checkbox" id="githubTarget" checked>
-                                        <span>GitHub Copilot</span>
-                                    </label>
-                                    <label class="checkbox-label">
-                                        <input type="checkbox" id="chatTarget">
-                                        <span>VS Code Chat</span>
-                                    </label>
-                                </div>
+                        <!-- Prompt Configuration -->
+                        <section class="prompt-section">
+                            <h2>Prompt Text</h2>
+                            <div class="prompt-input-group">
+                                <textarea 
+                                    id="promptText" 
+                                    class="prompt-textarea" 
+                                    placeholder="Enter your prompt text here..."
+                                    rows="4"></textarea>
+                                <button id="savePromptBtn" class="btn btn-secondary">Save Prompt</button>
                             </div>
                         </section>
 
-                        <!-- Status and Logs -->
+                        <!-- Status -->
                         <section class="status-section">
                             <h2>Status</h2>
                             <div class="status-info">
@@ -121,10 +96,6 @@ export class WebviewManager implements IWebviewManager {
                                 <div class="status-item">
                                     <span class="status-label">Execution Count:</span>
                                     <span id="executionCount" class="status-value">0</span>
-                                </div>
-                                <div class="status-item">
-                                    <span class="status-label">Connection:</span>
-                                    <span id="connectionStatus" class="status-value">Unknown</span>
                                 </div>
                             </div>
                             <div class="error-message" id="errorMessage" style="display: none;">

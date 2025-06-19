@@ -1,13 +1,12 @@
-import { PromptTemplate, TimeInterval } from '../domain';
-import { TemplateId } from '../domain/types';
+import { TimeInterval } from '../domain';
 import { IConfigurationService } from './interfaces';
 
 /**
  * ConfigurationManagementUseCase
  * 
  * Manages AutoPrompter configuration including:
- * 1. Prompt template management (CRUD operations)
- * 2. Schedule interval configuration
+ * 1. Prompt text management
+ * 2. Minimal interval configuration
  * 3. Automation enable/disable controls
  * 4. Configuration validation and persistence
  */
@@ -17,154 +16,57 @@ export class ConfigurationManagementUseCase {
     ) {}
 
     /**
-     * Updates an existing prompt template
-     * @param templateId ID of the template to update
-     * @param template Updated template data
+     * Gets the current prompt text
+     * @returns Current prompt text
      */
-    async updatePromptTemplate(templateId: TemplateId, template: PromptTemplate): Promise<void> {
-        if (template.id !== templateId) {
-            throw new Error('Template ID mismatch: provided ID does not match template ID');
-        }
-
-        try {
-            await this.configService.updatePromptTemplate(templateId, template);
-        } catch (error) {
-            throw new Error(`Failed to update prompt template: ${error instanceof Error ? error.message : String(error)}`);
-        }
+    async getPromptText(): Promise<string> {
+        return await this.configService.getPromptText();
     }
 
     /**
-     * Creates a new prompt template
-     * @param template New template to create
+     * Updates the prompt text
+     * @param promptText New prompt text
      */
-    async createPromptTemplate(template: PromptTemplate): Promise<void> {
-        try {
-            await this.configService.createPromptTemplate(template);
-        } catch (error) {
-            throw new Error(`Failed to create prompt template: ${error instanceof Error ? error.message : String(error)}`);
+    async setPromptText(promptText: string): Promise<void> {
+        if (!promptText.trim()) {
+            throw new Error('Prompt text cannot be empty');
         }
+        await this.configService.setPromptText(promptText);
     }
 
     /**
-     * Deletes a prompt template
-     * @param templateId ID of the template to delete
+     * Gets the current minimal interval
+     * @returns Current minimal interval
      */
-    async deletePromptTemplate(templateId: TemplateId): Promise<void> {
-        try {
-            const deleted = await this.configService.deletePromptTemplate(templateId);
-            if (!deleted) {
-                throw new Error(`Template with ID '${templateId}' not found`);
-            }
-        } catch (error) {
-            throw new Error(`Failed to delete prompt template: ${error instanceof Error ? error.message : String(error)}`);
-        }
+    async getMinimalInterval(): Promise<TimeInterval> {
+        return await this.configService.getMinimalInterval();
     }
 
     /**
-     * Gets all prompt templates
-     * @returns Array of all configured prompt templates
+     * Updates the minimal interval
+     * @param interval New minimal interval (must be at least 1 second)
      */
-    async getPromptTemplates(): Promise<PromptTemplate[]> {
-        try {
-            return await this.configService.getPromptTemplates();
-        } catch (error) {
-            throw new Error(`Failed to retrieve prompt templates: ${error instanceof Error ? error.message : String(error)}`);
-        }
-    }
-
-    /**
-     * Gets a specific prompt template by ID
-     * @param templateId ID of the template to retrieve
-     * @returns The template if found, null otherwise
-     */
-    async getPromptTemplate(templateId: TemplateId): Promise<PromptTemplate | null> {
-        try {
-            const templates = await this.configService.getPromptTemplates();
-            return templates.find(t => t.id === templateId) || null;
-        } catch (error) {
-            throw new Error(`Failed to retrieve prompt template: ${error instanceof Error ? error.message : String(error)}`);
-        }
-    }
-
-    /**
-     * Sets the schedule interval for automated prompting
-     * @param interval New time interval between prompts
-     */
-    async setScheduleInterval(interval: TimeInterval): Promise<void> {
+    async setMinimalInterval(interval: TimeInterval): Promise<void> {
         if (interval.ms < 1000) {
-            throw new Error('Schedule interval must be at least 1 second');
+            throw new Error('Minimal interval must be at least 1 second');
         }
-
-        if (interval.ms > 24 * 60 * 60 * 1000) { // 24 hours
-            throw new Error('Schedule interval cannot exceed 24 hours');
-        }
-
-        try {
-            await this.configService.setScheduleInterval(interval);
-        } catch (error) {
-            throw new Error(`Failed to set schedule interval: ${error instanceof Error ? error.message : String(error)}`);
-        }
-    }
-
-    /**
-     * Gets the current schedule interval
-     * @returns Current time interval between prompts
-     */
-    async getScheduleInterval(): Promise<TimeInterval> {
-        try {
-            return await this.configService.getScheduleInterval();
-        } catch (error) {
-            throw new Error(`Failed to get schedule interval: ${error instanceof Error ? error.message : String(error)}`);
-        }
-    }
-
-    /**
-     * Pauses automation by disabling automated prompting
-     */
-    async pauseAutomation(): Promise<void> {
-        try {
-            await this.configService.setAutomationEnabled(false);
-        } catch (error) {
-            throw new Error(`Failed to pause automation: ${error instanceof Error ? error.message : String(error)}`);
-        }
-    }
-
-    /**
-     * Resumes automation by enabling automated prompting
-     */
-    async resumeAutomation(): Promise<void> {
-        try {
-            await this.configService.setAutomationEnabled(true);
-        } catch (error) {
-            throw new Error(`Failed to resume automation: ${error instanceof Error ? error.message : String(error)}`);
-        }
+        await this.configService.setMinimalInterval(interval);
     }
 
     /**
      * Checks if automation is currently enabled
-     * @returns true if automation is enabled, false otherwise
+     * @returns true if automation is enabled
      */
     async isAutomationEnabled(): Promise<boolean> {
-        try {
-            return await this.configService.isAutomationEnabled();
-        } catch (error) {
-            throw new Error(`Failed to check automation status: ${error instanceof Error ? error.message : String(error)}`);
-        }
+        return await this.configService.isAutomationEnabled();
     }
 
     /**
-     * Toggles automation state (enabled <-> disabled)
-     * @returns New automation state
+     * Enables or disables automation
+     * @param enabled Whether automation should be enabled
      */
-    async toggleAutomation(): Promise<boolean> {
-        try {
-            const currentState = await this.configService.isAutomationEnabled();
-            const newState = !currentState;
-            await this.configService.setAutomationEnabled(newState);
-            return newState;
-        } catch (error) {
-            throw new Error(`Failed to toggle automation: ${error instanceof Error ? error.message : String(error)}`);
-        }
+    async setAutomationEnabled(enabled: boolean): Promise<void> {
+        await this.configService.setAutomationEnabled(enabled);
     }
 
     /**
@@ -178,29 +80,19 @@ export class ConfigurationManagementUseCase {
         const issues: string[] = [];
 
         try {
-            // Check templates
-            const templates = await this.configService.getPromptTemplates();
-            if (templates.length === 0) {
-                issues.push('No prompt templates configured');
+            // Check prompt text
+            const promptText = await this.configService.getPromptText();
+            if (!promptText.trim()) {
+                issues.push('Prompt text is empty');
             }
 
-            // Validate each template
-            for (const template of templates) {
-                if (!template.name.trim()) {
-                    issues.push(`Template '${template.id}' has empty name`);
-                }
-                if (!template.content.trim()) {
-                    issues.push(`Template '${template.id}' has empty content`);
-                }
-            }
-
-            // Check schedule interval
-            const interval = await this.configService.getScheduleInterval();
+            // Check minimal interval
+            const interval = await this.configService.getMinimalInterval();
             if (interval.ms < 1000) {
-                issues.push('Schedule interval is less than 1 second');
+                issues.push('Minimal interval is less than 1 second');
             }
             if (interval.ms > 24 * 60 * 60 * 1000) {
-                issues.push('Schedule interval exceeds 24 hours');
+                issues.push('Minimal interval exceeds 24 hours');
             }
 
         } catch (error) {
@@ -218,25 +110,78 @@ export class ConfigurationManagementUseCase {
      * @returns Configuration summary
      */
     async getConfigurationSummary(): Promise<{
-        templateCount: number;
-        scheduleInterval: string;
+        promptText: string;
+        minimalInterval: string;
         automationEnabled: boolean;
         configurationValid: boolean;
     }> {
         try {
-            const templates = await this.configService.getPromptTemplates();
-            const interval = await this.configService.getScheduleInterval();
+            const promptText = await this.configService.getPromptText();
+            const interval = await this.configService.getMinimalInterval();
             const automationEnabled = await this.configService.isAutomationEnabled();
             const validation = await this.validateConfiguration();
 
             return {
-                templateCount: templates.length,
-                scheduleInterval: interval.toString(),
+                promptText: promptText.length > 50 ? promptText.substring(0, 50) + '...' : promptText,
+                minimalInterval: interval.toString(),
                 automationEnabled,
                 configurationValid: validation.isValid
             };
         } catch (error) {
             throw new Error(`Failed to get configuration summary: ${error instanceof Error ? error.message : String(error)}`);
         }
+    }
+
+    /**
+     * Creates a recommended configuration based on user context
+     * @param userContext Optional context about user's preferences
+     * @returns Recommended configuration values
+     */
+    async getRecommendedConfiguration(userContext?: {
+        projectType?: string;
+        experienceLevel?: 'beginner' | 'intermediate' | 'advanced';
+        focusArea?: 'general' | 'performance' | 'security' | 'testing';
+    }): Promise<{
+        promptText: string;
+        minimalInterval: TimeInterval;
+    }> {
+        // Default recommendations
+        let promptText = 'Please review the current code and provide suggestions for improvement.';
+        let minimalInterval = TimeInterval.fromMinutes(1);
+
+        if (userContext) {
+            // Customize based on focus area
+            switch (userContext.focusArea) {
+                case 'performance':
+                    promptText = 'Please analyze this code for performance optimization opportunities, including algorithm efficiency, memory usage, and resource utilization.';
+                    break;
+                case 'security':
+                    promptText = 'Please review this code for potential security vulnerabilities and suggest security best practices.';
+                    break;
+                case 'testing':
+                    promptText = 'Please suggest unit tests for this code, covering normal cases, edge cases, and error conditions.';
+                    break;
+                default:
+                    promptText = 'Please review the current code and provide suggestions for improvement.';
+            }
+
+            // Adjust interval based on experience level
+            switch (userContext.experienceLevel) {
+                case 'beginner':
+                    minimalInterval = TimeInterval.fromMinutes(2); // Less frequent for beginners
+                    break;
+                case 'intermediate':
+                    minimalInterval = TimeInterval.fromMinutes(1);
+                    break;
+                case 'advanced':
+                    minimalInterval = TimeInterval.fromSeconds(30); // More frequent for advanced users
+                    break;
+            }
+        }
+
+        return {
+            promptText,
+            minimalInterval
+        };
     }
 }

@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { AutoPrompterConfiguration, PromptTemplate, TimeInterval } from '../domain';
+import { AutoPrompterConfiguration, TimeInterval } from '../domain';
 import { ConfigurationManagementUseCase, AutomatedPromptingUseCase } from '../application';
 import { WebviewManager } from './webview-manager';
 import { UIStateManager } from './ui-state-manager';
@@ -16,7 +16,7 @@ import {
  * AutoPrompterSidebarProvider
  * 
  * Main sidebar provider for the AutoPrompter extension.
- * Provides a WebView-based interface for configuration and control.
+ * Provides a simplified WebView-based interface for configuration and control.
  */
 export class AutoPrompterSidebarProvider implements ISidebarProvider {
     public static readonly viewType = 'autoprompter.sidebar';
@@ -89,27 +89,19 @@ export class AutoPrompterSidebarProvider implements ISidebarProvider {
     public async updateConfiguration(config: AutoPrompterConfiguration): Promise<void> {
         this.uiStateManager.updateState({
             isAutomationEnabled: config.isEnabled,
-            scheduleInterval: config.schedule.intervalMs,
-            currentTemplate: config.templates.length > 0 ? config.templates[0].id : null
+            scheduleInterval: config.schedule.minimalIntervalMs,
+            currentPromptText: config.promptText
         });
 
         await this.sendMessage({
             type: WebViewMessageType.UPDATE_CONFIG,
             payload: {
-                config: this.serializeConfig(config),
+                config: {
+                    automationEnabled: config.isEnabled,
+                    intervalMs: config.schedule.minimalIntervalMs
+                },
+                promptText: config.promptText,
                 state: this.uiStateManager.getState()
-            }
-        });
-    }
-
-    /**
-     * Updates the template list in the sidebar
-     */
-    public async updateTemplates(templates: PromptTemplate[]): Promise<void> {
-        await this.sendMessage({
-            type: WebViewMessageType.GET_TEMPLATES,
-            payload: {
-                templates: templates.map(t => this.serializeTemplate(t))
             }
         });
     }
@@ -138,41 +130,26 @@ export class AutoPrompterSidebarProvider implements ISidebarProvider {
     private async handleWebviewMessage(message: WebViewMessage): Promise<WebViewResponse> {
         try {
             switch (message.type) {
-                case WebViewMessageType.GET_CONFIG:
-                    return await this.handleGetConfig();
+                case WebViewMessageType.READY:
+                    return await this.handleReady();
 
-                case WebViewMessageType.UPDATE_CONFIG:
-                    return await this.handleUpdateConfig(message.payload);
+                case WebViewMessageType.TOGGLE_AUTOMATION:
+                    return await this.handleToggleAutomation(message.payload.enabled);
 
-                case WebViewMessageType.START_AUTOMATION:
-                    return await this.handleStartAutomation();
+                case WebViewMessageType.UPDATE_INTERVAL:
+                    return await this.handleUpdateInterval(message.payload.intervalMs);
 
-                case WebViewMessageType.STOP_AUTOMATION:
-                    return await this.handleStopAutomation();
+                case WebViewMessageType.SET_PROMPT_TEXT:
+                    return await this.handleSetPromptText(message.payload.promptText);
 
                 case WebViewMessageType.EXECUTE_NOW:
                     return await this.handleExecuteNow();
 
-                case WebViewMessageType.TEST_CONNECTION:
-                    return await this.handleTestConnection();
-
-                case WebViewMessageType.GET_TEMPLATES:
-                    return await this.handleGetTemplates();
-
-                case WebViewMessageType.ADD_TEMPLATE:
-                    return await this.handleAddTemplate();
-
-                case WebViewMessageType.UPDATE_TEMPLATE:
-                    return await this.handleUpdateTemplate();
-
-                case WebViewMessageType.DELETE_TEMPLATE:
-                    return await this.handleDeleteTemplate();
+                case WebViewMessageType.GET_CONFIG:
+                    return await this.handleGetConfig();
 
                 case WebViewMessageType.GET_STATUS:
                     return await this.handleGetStatus();
-
-                case WebViewMessageType.READY:
-                    return await this.handleReady();
 
                 default:
                     throw new Error(`Unknown message type: ${message.type}`);
@@ -193,22 +170,27 @@ export class AutoPrompterSidebarProvider implements ISidebarProvider {
         try {
             // Get current configuration
             const summary = await this.configUseCase.getConfigurationSummary();
-            const templates = await this.configUseCase.getPromptTemplates();
+            const promptText = await this.configUseCase.getPromptText();
             
             // Update UI state
             this.uiStateManager.updateState({
                 isAutomationEnabled: summary.automationEnabled,
-                scheduleInterval: 300000, // Default value, we'll get from interval
-                currentTemplate: templates.length > 0 ? templates[0].id : null,
-                isConnected: true
+                scheduleInterval: 60000, // Default minimal interval
+                currentPromptText: promptText,
+                isConnected: true,
+                executionCount: 0,
+                lastExecutionTime: null
             });
 
             // Send initial data to webview
             await this.sendMessage({
                 type: WebViewMessageType.UPDATE_CONFIG,
                 payload: {
-                    config: summary,
-                    templates: templates.map(t => this.serializeTemplate(t)),
+                    config: {
+                        automationEnabled: summary.automationEnabled,
+                        intervalMs: 60000
+                    },
+                    promptText: promptText,
                     state: this.uiStateManager.getState()
                 }
             });
@@ -219,127 +201,129 @@ export class AutoPrompterSidebarProvider implements ISidebarProvider {
     }
 
     /**
-     * Configuration message handlers
+     * Message handlers
      */
-    private async handleGetConfig(): Promise<WebViewResponse> {
-        const summary = await this.configUseCase.getConfigurationSummary();
-        return {
-            success: true,
-            data: summary
-        };
-    }
-
-    private async handleUpdateConfig(payload: any): Promise<WebViewResponse> {
-        // Update configuration based on payload
-        if (payload.automationEnabled !== undefined) {
-            if (payload.automationEnabled) {
-                await this.configUseCase.resumeAutomation();
-            } else {
-                await this.configUseCase.pauseAutomation();
-            }
-        }
-        
-        if (payload.intervalMs !== undefined) {
-            const interval = TimeInterval.fromSeconds(payload.intervalMs / 1000);
-            await this.configUseCase.setScheduleInterval(interval);
-        }
-
-        return { success: true };
-    }
-
-    /**
-     * Automation control handlers
-     */
-    private async handleStartAutomation(): Promise<WebViewResponse> {
-        await this.configUseCase.resumeAutomation();
-        this.uiStateManager.updateState({ isAutomationEnabled: true });
-        await this.showStatus('Automation started');
-        return { success: true };
-    }
-
-    private async handleStopAutomation(): Promise<WebViewResponse> {
-        await this.configUseCase.pauseAutomation();
-        this.uiStateManager.updateState({ isAutomationEnabled: false });
-        await this.showStatus('Automation stopped');
-        return { success: true };
-    }
-
-    private async handleExecuteNow(): Promise<WebViewResponse> {
-        const result = await this.automationUseCase.executePromptNow(true);
-        
-        this.uiStateManager.updateState({
-            lastExecutionTime: new Date(),
-            executionCount: this.uiStateManager.getState().executionCount + 1
-        });
-
-        await this.showStatus(result.message, !result.success);
-        
-        return {
-            success: result.success,
-            data: {
-                message: result.message,
-                deliveryResult: result.deliveryResult
-            }
-        };
-    }
-
-    private async handleTestConnection(): Promise<WebViewResponse> {
-        // This would test the connection to AI services
-        // For now, return a placeholder
-        await this.showStatus('Connection test completed');
-        return {
-            success: true,
-            data: { message: 'Connection test completed' }
-        };
-    }
-
-    /**
-     * Template management handlers
-     */
-    private async handleGetTemplates(): Promise<WebViewResponse> {
-        const templates = await this.configUseCase.getPromptTemplates();
-        return {
-            success: true,
-            data: templates.map(t => this.serializeTemplate(t))
-        };
-    }
-
-    private async handleAddTemplate(): Promise<WebViewResponse> {
-        // Implementation would create a new template
-        // For now, return placeholder
-        return { success: true };
-    }
-
-    private async handleUpdateTemplate(): Promise<WebViewResponse> {
-        // Implementation would update an existing template
-        // For now, return placeholder
-        return { success: true };
-    }
-
-    private async handleDeleteTemplate(): Promise<WebViewResponse> {
-        // Implementation would delete a template
-        // For now, return placeholder
-        return { success: true };
-    }
-
-    /**
-     * Status handlers
-     */
-    private async handleGetStatus(): Promise<WebViewResponse> {
-        const executionStatus = await this.automationUseCase.getExecutionStatus();
-        
-        return {
-            success: true,
-            data: {
-                ...this.uiStateManager.getState(),
-                executionStatus
-            }
-        };
-    }
-
     private async handleReady(): Promise<WebViewResponse> {
         await this.initializeView();
         return { success: true };
+    }
+
+    private async handleToggleAutomation(enabled: boolean): Promise<WebViewResponse> {
+        try {
+            await this.configUseCase.setAutomationEnabled(enabled);
+            this.uiStateManager.updateState({ isAutomationEnabled: enabled });
+            await this.showStatus(enabled ? 'Automation enabled' : 'Automation disabled');
+            return { success: true };
+        } catch (error) {
+            console.error('Failed to toggle automation:', error);
+            await this.showStatus('Failed to toggle automation', true);
+            return { 
+                success: false, 
+                error: error instanceof Error ? error.message : String(error)
+            };
+        }
+    }
+
+    private async handleUpdateInterval(intervalMs: number): Promise<WebViewResponse> {
+        try {
+            const interval = new TimeInterval(intervalMs);
+            await this.configUseCase.setMinimalInterval(interval);
+            this.uiStateManager.updateState({ scheduleInterval: intervalMs });
+            await this.showStatus('Interval updated successfully');
+            return { success: true };
+        } catch (error) {
+            console.error('Failed to update interval:', error);
+            await this.showStatus('Failed to update interval', true);
+            return { 
+                success: false, 
+                error: error instanceof Error ? error.message : String(error)
+            };
+        }
+    }
+
+    private async handleSetPromptText(promptText: string): Promise<WebViewResponse> {
+        try {
+            await this.configUseCase.setPromptText(promptText);
+            this.uiStateManager.updateState({ currentPromptText: promptText });
+            return { success: true };
+        } catch (error) {
+            console.error('Failed to update prompt text:', error);
+            return { 
+                success: false, 
+                error: error instanceof Error ? error.message : String(error)
+            };
+        }
+    }
+
+    private async handleExecuteNow(): Promise<WebViewResponse> {
+        try {
+            const result = await this.automationUseCase.executePromptNow(true);
+            
+            const currentState = this.uiStateManager.getState();
+            this.uiStateManager.updateState({
+                lastExecutionTime: new Date(),
+                executionCount: currentState.executionCount + 1
+            });
+
+            await this.showStatus(result.message, !result.success);
+            
+            return {
+                success: result.success,
+                data: {
+                    message: result.message,
+                    deliveryResult: result.deliveryResult
+                }
+            };
+        } catch (error) {
+            console.error('Failed to execute prompt:', error);
+            await this.showStatus('Failed to execute prompt', true);
+            return { 
+                success: false, 
+                error: error instanceof Error ? error.message : String(error)
+            };
+        }
+    }
+
+    private async handleGetConfig(): Promise<WebViewResponse> {
+        try {
+            const summary = await this.configUseCase.getConfigurationSummary();
+            const promptText = await this.configUseCase.getPromptText();
+            
+            return {
+                success: true,
+                data: {
+                    config: {
+                        automationEnabled: summary.automationEnabled,
+                        intervalMs: 60000 // Default
+                    },
+                    promptText: promptText
+                }
+            };
+        } catch (error) {
+            return { 
+                success: false, 
+                error: error instanceof Error ? error.message : String(error)
+            };
+        }
+    }
+
+    private async handleGetStatus(): Promise<WebViewResponse> {
+        try {
+            const executionStatus = await this.automationUseCase.getExecutionStatus();
+            
+            return {
+                success: true,
+                data: {
+                    ...this.uiStateManager.getState(),
+                    executionStatus
+                }
+            };
+        } catch (error) {
+            return { 
+                success: false, 
+                error: error instanceof Error ? error.message : String(error)
+            };
+        }
     }
 
     /**
@@ -355,34 +339,5 @@ export class AutoPrompterSidebarProvider implements ISidebarProvider {
         if (this._view) {
             await this._view.webview.postMessage(response);
         }
-    }
-
-    private serializeConfig(config: AutoPrompterConfiguration): any {
-        return {
-            isEnabled: config.isEnabled,
-            maxDailyPrompts: config.maxDailyPrompts,
-            enabledTargets: config.enabledTargets,
-            schedule: {
-                intervalMs: config.schedule.intervalMs,
-                isActive: config.schedule.isActive,
-                maxRetries: config.schedule.maxRetries
-            },
-            templateCount: config.templates.length
-        };
-    }
-
-    private serializeTemplate(template: PromptTemplate): any {
-        return {
-            id: template.id,
-            name: template.name,
-            content: template.content,
-            category: template.category,
-            variables: template.variables.map(v => ({
-                name: v.name,
-                type: v.type,
-                defaultValue: v.defaultValue,
-                description: v.description
-            }))
-        };
     }
 }

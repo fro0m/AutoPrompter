@@ -28,17 +28,40 @@ export enum AISessionState {
     Unavailable = 'unavailable'
 }
 
+export type IdleCallback = (sessionId: SessionId, idleDuration: TimeInterval) => void;
+
 export class AISessionMonitor {
     private readonly sessionId: SessionId;
     private currentState: AISessionState;
     private idleStartTime: DateTime | null;
     private readonly chatWindows: Map<string, ChatWindowMonitor> = new Map();
     private readonly events: AIIdleDetectedEvent[] = [];
+    private readonly idleCallbacks: IdleCallback[] = [];
+    private idleCheckInterval: NodeJS.Timeout | null = null;
+    private previousState: AISessionState = AISessionState.Unknown;
 
     constructor(sessionId: SessionId) {
         this.sessionId = sessionId;
         this.currentState = AISessionState.Unknown;
         this.idleStartTime = null;
+        this.startIdleMonitoring();
+    }
+
+    /**
+     * Registers a callback to be called when the AI session becomes idle
+     */
+    onIdle(callback: IdleCallback): void {
+        this.idleCallbacks.push(callback);
+    }
+
+    /**
+     * Removes an idle callback
+     */
+    removeIdleCallback(callback: IdleCallback): void {
+        const index = this.idleCallbacks.indexOf(callback);
+        if (index > -1) {
+            this.idleCallbacks.splice(index, 1);
+        }
     }
 
     async detectChatWindows(): Promise<ChatWindow[]> {
@@ -72,7 +95,7 @@ export class AISessionMonitor {
         return {
             isIdle,
             idleDuration,
-            target: AITarget.GitHub // Default target
+            target: AITarget.GitHub // Always use GitHub as the target
         };
     }
 
@@ -113,13 +136,14 @@ export class AISessionMonitor {
 
     markIdle(): void {
         if (this.currentState !== AISessionState.Idle) {
+            this.previousState = this.currentState;
             this.currentState = AISessionState.Idle;
             this.idleStartTime = DateTime.now();
             
-            const idleDuration = this.idleStartTime ? 
-                DateTime.now().toDate().getTime() - this.idleStartTime.toDate().getTime() : 0;
-            
-            this.emitIdleDetectedEvent(idleDuration);
+            // Notify idle callbacks immediately when becoming idle
+            const idleDuration = TimeInterval.fromSeconds(0);
+            this.notifyIdleCallbacks(idleDuration);
+            this.emitIdleDetectedEvent(0);
         }
     }
 
@@ -151,6 +175,14 @@ export class AISessionMonitor {
 
     clearEvents(): void {
         this.events.length = 0;
+    }
+
+    dispose(): void {
+        if (this.idleCheckInterval) {
+            clearInterval(this.idleCheckInterval);
+            this.idleCheckInterval = null;
+        }
+        this.idleCallbacks.length = 0;
     }
 
     private async findCopilotChat(): Promise<ChatWindow | null> {
@@ -187,5 +219,31 @@ export class AISessionMonitor {
     private emitIdleDetectedEvent(idleDuration: number): void {
         const event = new AIIdleDetectedEvent(this.sessionId, idleDuration);
         this.events.push(event);
+    }
+
+    private notifyIdleCallbacks(idleDuration: TimeInterval): void {
+        this.idleCallbacks.forEach(callback => {
+            try {
+                callback(this.sessionId, idleDuration);
+            } catch (error) {
+                console.error('Error in idle callback:', error);
+            }
+        });
+    }
+
+    /**
+     * Starts monitoring for state changes to detect when AI becomes idle
+     */
+    private startIdleMonitoring(): void {
+        this.idleCheckInterval = setInterval(() => {
+            const currentlyIdle = this.isCurrentlyIdle();
+            const hasWindows = this.chatWindows.size > 0;
+            
+            if (currentlyIdle && hasWindows && this.currentState !== AISessionState.Idle) {
+                this.markIdle();
+            } else if (!currentlyIdle && this.currentState === AISessionState.Idle) {
+                this.registerActivity();
+            }
+        }, 5000); // Check every 5 seconds
     }
 }

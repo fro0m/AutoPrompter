@@ -32,7 +32,7 @@ export class UIStateManager implements IUIStateManager {
     /**
      * Resets the UI state to defaults
      */
-    public resetState(): void {
+    public reset(): void {
         this.state = this.createDefaultState();
     }
 
@@ -42,8 +42,8 @@ export class UIStateManager implements IUIStateManager {
     private createDefaultState(): UIState {
         return {
             isAutomationEnabled: false,
-            currentTemplate: null,
-            scheduleInterval: 300000, // 5 minutes
+            currentPromptText: 'Please review the current code and provide suggestions for improvement.',
+            scheduleInterval: 300000, // 5 minutes default
             lastExecutionTime: null,
             executionCount: 0,
             errorMessage: null,

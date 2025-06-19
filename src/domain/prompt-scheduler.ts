@@ -1,26 +1,25 @@
 import { ScheduleId, AITarget, TimeInterval, DateTime } from '../domain/types';
 import { PromptSentEvent } from './events';
-import { PromptTemplate } from './value-objects';
 
 export interface ScheduledPrompt {
     id: string;
-    template: PromptTemplate;
+    promptText: string;
     target: AITarget;
     scheduledFor: DateTime;
 }
 
 export interface ScheduleConfiguration {
-    intervalMs: number;
+    minimalIntervalMs: number;
     isActive: boolean;
     maxRetries: number;
 }
 
 export class PromptScheduler {
     private readonly scheduleId: ScheduleId;
-    private interval: TimeInterval;
+    private minimalInterval: TimeInterval;
     private isActive: boolean;
     private lastExecuted: DateTime | null;
-    private timerId: NodeJS.Timeout | null = null;
+    private pendingPromptTimeout: NodeJS.Timeout | null = null;
     private readonly events: PromptSentEvent[] = [];
 
     constructor(
@@ -28,33 +27,64 @@ export class PromptScheduler {
         configuration: ScheduleConfiguration
     ) {
         this.scheduleId = scheduleId;
-        this.interval = TimeInterval.fromSeconds(configuration.intervalMs / 1000);
+        this.minimalInterval = TimeInterval.fromSeconds(configuration.minimalIntervalMs / 1000);
         this.isActive = configuration.isActive;
         this.lastExecuted = null;
     }
 
-    schedule(template: PromptTemplate, target: AITarget): ScheduledPrompt {
+    schedule(promptText: string, target: AITarget): ScheduledPrompt {
         const scheduledFor = this.calculateNextExecution();
         
         return {
             id: Math.random().toString(36).substr(2, 9),
-            template,
+            promptText,
             target,
             scheduledFor
         };
     }
 
+    /**
+     * Triggers immediate prompt execution if minimal interval has passed
+     * If minimal interval hasn't passed, schedules for when it completes
+     */
+    triggerOnIdle(promptText: string, target: AITarget, onExecute: (prompt: ScheduledPrompt) => void): void {
+        if (!this.isActive) {
+            return;
+        }
+
+        const canExecuteNow = this.canExecute();
+        const scheduledPrompt = this.schedule(promptText, target);
+
+        if (canExecuteNow) {
+            // Execute immediately
+            onExecute(scheduledPrompt);
+            this.markExecuted();
+        } else {
+            // Schedule for when minimal interval completes
+            const timeUntilCanExecute = this.getTimeUntilCanExecute();
+            
+            if (this.pendingPromptTimeout) {
+                clearTimeout(this.pendingPromptTimeout);
+            }
+            
+            this.pendingPromptTimeout = setTimeout(() => {
+                onExecute(scheduledPrompt);
+                this.markExecuted();
+                this.pendingPromptTimeout = null;
+            }, timeUntilCanExecute.ms);
+        }
+    }
+
     pause(): void {
         this.isActive = false;
-        if (this.timerId) {
-            clearInterval(this.timerId);
-            this.timerId = null;
+        if (this.pendingPromptTimeout) {
+            clearTimeout(this.pendingPromptTimeout);
+            this.pendingPromptTimeout = null;
         }
     }
 
     resume(): void {
         this.isActive = true;
-        this.startTimer();
     }
 
     canExecute(): boolean {
@@ -69,7 +99,22 @@ export class PromptScheduler {
         const timeSinceLastExecution = DateTime.now().toDate().getTime() - 
                                      this.lastExecuted.toDate().getTime();
         
-        return timeSinceLastExecution >= this.interval.ms;
+        return timeSinceLastExecution >= this.minimalInterval.ms;
+    }
+
+    /**
+     * Gets the time remaining until a prompt can be executed
+     */
+    getTimeUntilCanExecute(): TimeInterval {
+        if (!this.lastExecuted || this.canExecute()) {
+            return TimeInterval.fromSeconds(0);
+        }
+
+        const timeSinceLastExecution = DateTime.now().toDate().getTime() - 
+                                     this.lastExecuted.toDate().getTime();
+        
+        const remainingMs = this.minimalInterval.ms - timeSinceLastExecution;
+        return new TimeInterval(Math.max(0, remainingMs));
     }
 
     markExecuted(): void {
@@ -77,14 +122,8 @@ export class PromptScheduler {
         this.events.push(new PromptSentEvent('', '', ''));
     }
 
-    updateInterval(interval: TimeInterval): void {
-        this.interval = interval;
-        
-        // Restart timer with new interval if active
-        if (this.isActive && this.timerId) {
-            this.pause();
-            this.resume();
-        }
+    updateMinimalInterval(interval: TimeInterval): void {
+        this.minimalInterval = interval;
     }
 
     getEvents(): PromptSentEvent[] {
@@ -104,18 +143,7 @@ export class PromptScheduler {
             return DateTime.now();
         }
 
-        const nextTime = new Date(this.lastExecuted.toDate().getTime() + this.interval.ms);
+        const nextTime = new Date(this.lastExecuted.toDate().getTime() + this.minimalInterval.ms);
         return DateTime.fromDate(nextTime);
-    }
-
-    private startTimer(): void {
-        if (this.timerId) {
-            clearInterval(this.timerId);
-        }
-
-        this.timerId = setInterval(() => {
-            // This would trigger the execution logic
-            // In practice, this would emit an event or call a callback
-        }, this.interval.ms);
     }
 }

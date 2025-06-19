@@ -12,7 +12,7 @@ import {
 suite('Domain Layer Tests', () => {
     test('PromptScheduler should initialize correctly', () => {
         const config: ScheduleConfiguration = {
-            intervalMs: 5000,
+            minimalIntervalMs: 5000,
             isActive: true,
             maxRetries: 3
         };

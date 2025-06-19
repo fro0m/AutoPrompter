@@ -8,15 +8,14 @@ import {
     PromptScheduler,
     AISessionMonitor,
     PromptSchedulingEngine,
-    AISessionMonitoringService,
-    WorkspaceTemplateRepository
+    AISessionMonitoringService
 } from './index';
+import { ContextAwarePromptGenerator } from './infrastructure/context-aware-prompt-generator';
 
 let sidebarProvider: AutoPrompterSidebarProvider;
 let configRepository: WorkspaceConfigurationRepository;
 let schedulingEngine: PromptSchedulingEngine;
 let sessionMonitoringService: AISessionMonitoringService;
-let templateRepository: WorkspaceTemplateRepository;
 
 export async function activate(context: vscode.ExtensionContext) {
     console.log('AutoPrompter extension is now active!');
@@ -26,13 +25,12 @@ export async function activate(context: vscode.ExtensionContext) {
         configRepository = new WorkspaceConfigurationRepository();
         const chatIntegration = new VSCodeChatIntegration();
         
-        // Initialize template repository
-        templateRepository = new WorkspaceTemplateRepository();
-        await templateRepository.initialize();
+        // Initialize code context analyzer
+        const codeContextAnalyzer = new ContextAwarePromptGenerator();
         
         // Initialize domain entities  
         const scheduler = new PromptScheduler('main-scheduler', {
-            intervalMs: 300000, // 5 minutes
+            minimalIntervalMs: 60000, // 1 minute minimal interval
             isActive: false,
             maxRetries: 3
         });
@@ -55,35 +53,28 @@ export async function activate(context: vscode.ExtensionContext) {
             enableWorkspaceMonitoring: true
         });
         
+        // Create AI session monitor
         const sessionMonitor = new AISessionMonitor('main-session');
         
-        // Initialize application layer use cases
+        // Initialize use cases
         const configUseCase = new ConfigurationManagementUseCase(configRepository);
-        // Use ContextAwarePromptGenerator for ICodeContextService
-        const contextAwarePromptGenerator = new (await import('./infrastructure/context-aware-prompt-generator')).ContextAwarePromptGenerator();
-        const automationUseCase = new AutomatedPromptingUseCase(
+        
+        const automatedPromptingUseCase = new AutomatedPromptingUseCase(
             scheduler,
             sessionMonitor,
-            chatIntegration,
+            chatIntegration, // Use chat integration as delivery service
             configRepository,
-            contextAwarePromptGenerator, // ICodeContextService
-            templateRepository  // ITemplateSelectionService
+            codeContextAnalyzer
         );
         
-        // Register the scheduler with the scheduling engine
-        schedulingEngine.registerScheduler('main-scheduler', scheduler);
-        
-        // Start the session monitoring service
-        sessionMonitoringService.start();
-        
-        // Initialize presentation layer
+        // Initialize sidebar provider
         sidebarProvider = new AutoPrompterSidebarProvider(
             context.extensionUri,
             configUseCase,
-            automationUseCase
+            automatedPromptingUseCase
         );
         
-        // Register the sidebar provider
+        // Register webview provider
         context.subscriptions.push(
             vscode.window.registerWebviewViewProvider(
                 AutoPrompterSidebarProvider.viewType,
@@ -91,68 +82,56 @@ export async function activate(context: vscode.ExtensionContext) {
             )
         );
         
-        // Register command handlers
+        // Register commands
         context.subscriptions.push(
-            vscode.commands.registerCommand('autoprompter.pause', async () => {
-                try {
-                    scheduler.pause();
-                    vscode.window.showInformationMessage('AutoPrompter paused');
-                    await sidebarProvider.showStatus('AutoPrompter paused');
-                } catch (error) {
-                    const errorMessage = error instanceof Error ? error.message : String(error);
-                    vscode.window.showErrorMessage(`Failed to pause AutoPrompter: ${errorMessage}`);
-                    console.error('Error pausing AutoPrompter:', error);
-                }
+            vscode.commands.registerCommand('autoprompter.openConfiguration', () => {
+                vscode.commands.executeCommand('workbench.view.extension.autoprompter');
             })
         );
-
+        
         context.subscriptions.push(
-            vscode.commands.registerCommand('autoprompter.resume', async () => {
+            vscode.commands.registerCommand('autoprompter.triggerPrompt', async () => {
                 try {
-                    scheduler.resume();
-                    vscode.window.showInformationMessage('AutoPrompter resumed');
-                    await sidebarProvider.showStatus('AutoPrompter resumed');
-                } catch (error) {
-                    const errorMessage = error instanceof Error ? error.message : String(error);
-                    vscode.window.showErrorMessage(`Failed to resume AutoPrompter: ${errorMessage}`);
-                    console.error('Error resuming AutoPrompter:', error);
-                }
-            })
-        );
-
-        context.subscriptions.push(
-            vscode.commands.registerCommand('autoprompter.sendPromptNow', async () => {
-                try {
-                    const result = await automationUseCase.executePromptNow(true);
-                    
+                    const result = await automatedPromptingUseCase.executePromptNow(true);
                     if (result.success) {
-                        vscode.window.showInformationMessage('Prompt sent successfully');
-                        await sidebarProvider.showStatus('Prompt sent successfully');
+                        vscode.window.showInformationMessage('Prompt sent successfully!');
                     } else {
-                        vscode.window.showWarningMessage(`Failed to send prompt: ${result.message}`);
-                        await sidebarProvider.showStatus(`Failed to send prompt: ${result.message}`, true);
+                        vscode.window.showWarningMessage(`Prompt failed: ${result.message}`);
                     }
                 } catch (error) {
-                    const errorMessage = error instanceof Error ? error.message : String(error);
-                    vscode.window.showErrorMessage(`Error sending prompt: ${errorMessage}`);
-                    await sidebarProvider.showStatus(`Error sending prompt: ${errorMessage}`, true);
-                    console.error('Error sending prompt now:', error);
+                    vscode.window.showErrorMessage(`Error: ${error instanceof Error ? error.message : String(error)}`);
                 }
             })
         );
         
-        // Register configuration change watcher
-        configRepository.watch(async (config) => {
-            await sidebarProvider.updateConfiguration(config);
-        });
+        context.subscriptions.push(
+            vscode.commands.registerCommand('autoprompter.toggleAutomation', async () => {
+                try {
+                    const currentState = await configUseCase.isAutomationEnabled();
+                    await configUseCase.setAutomationEnabled(!currentState);
+                    
+                    const newState = !currentState;
+                    const message = newState ? 'Automation enabled' : 'Automation disabled';
+                    vscode.window.showInformationMessage(message);
+                } catch (error) {
+                    vscode.window.showErrorMessage(`Error: ${error instanceof Error ? error.message : String(error)}`);
+                }
+            })
+        );
         
-        console.log('AutoPrompter extension initialized successfully');
+        // Start monitoring services
+        sessionMonitoringService.start();
+        
+        // Add disposables
+        context.subscriptions.push(configRepository);
+        context.subscriptions.push(sessionMonitoringService);
+        context.subscriptions.push(schedulingEngine);
+        
+        console.log('AutoPrompter extension activated successfully');
         
     } catch (error) {
         console.error('Failed to activate AutoPrompter extension:', error);
-        vscode.window.showErrorMessage(
-            `Failed to activate AutoPrompter: ${error instanceof Error ? error.message : String(error)}`
-        );
+        vscode.window.showErrorMessage('Failed to activate AutoPrompter extension');
     }
 }
 
@@ -160,21 +139,21 @@ export function deactivate() {
     console.log('AutoPrompter extension is being deactivated');
     
     try {
-        // Cleanup resources
-        if (configRepository) {
-            configRepository.dispose();
+        // Clean up services
+        if (sessionMonitoringService) {
+            sessionMonitoringService.dispose();
         }
         
         if (schedulingEngine) {
             schedulingEngine.dispose();
         }
         
-        if (sessionMonitoringService) {
-            sessionMonitoringService.dispose();
+        if (configRepository) {
+            configRepository.dispose();
         }
         
         console.log('AutoPrompter extension deactivated successfully');
     } catch (error) {
-        console.error('Error during AutoPrompter extension deactivation:', error);
+        console.error('Error during extension deactivation:', error);
     }
 }

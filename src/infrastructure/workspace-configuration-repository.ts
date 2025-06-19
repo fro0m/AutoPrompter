@@ -1,8 +1,7 @@
 import * as vscode from 'vscode';
 import { IConfigurationRepository, AutoPrompterConfiguration, ScheduleConfiguration } from '../domain';
 import { IConfigurationService } from '../application/interfaces';
-import { PromptTemplate, TemplateVariable, TimeInterval } from '../domain/value-objects';
-import { PromptCategory, TemplateId } from '../domain/types';
+import { TimeInterval } from '../domain/value-objects';
 
 /**
  * Workspace Configuration Repository
@@ -12,39 +11,9 @@ import { PromptCategory, TemplateId } from '../domain/types';
  * and validation for AutoPrompter settings.
  */
 export class WorkspaceConfigurationRepository implements IConfigurationRepository, IConfigurationService {
-    /**
-     * Adds a new prompt template
-     * @param template The template to add
-     */
-    async createPromptTemplate(template: PromptTemplate): Promise<void> {
-        const config = await this.load();
-        if (config.templates.some(t => t.id === template.id)) {
-            throw new Error(`Template with ID '${template.id}' already exists`);
-        }
-        const updatedTemplates = [...config.templates, template];
-        const updatedConfig = config.withTemplates(updatedTemplates);
-        await this.save(updatedConfig);
-    }
-
-    /**
-     * Deletes a prompt template by ID
-     * @param templateId The ID of the template to delete
-     * @returns true if deleted, false if not found
-     */
-    async deletePromptTemplate(templateId: TemplateId): Promise<boolean> {
-        const config = await this.load();
-        const templateExists = config.templates.some(t => t.id === templateId);
-        if (!templateExists) {
-            return false;
-        }
-        const updatedTemplates = config.templates.filter(t => t.id !== templateId);
-        const updatedConfig = config.withTemplates(updatedTemplates);
-        await this.save(updatedConfig);
-        return true;
-    }
     private readonly configurationSection = 'autoprompter';
     private readonly watchers: Array<(config: AutoPrompterConfiguration) => void> = [];
-    private watcherDisposable?: vscode.Disposable;
+    private configurationWatcher: vscode.Disposable | null = null;
 
     constructor() {
         this.setupConfigurationWatcher();
@@ -58,14 +27,13 @@ export class WorkspaceConfigurationRepository implements IConfigurationRepositor
         try {
             const workspaceConfig = vscode.workspace.getConfiguration(this.configurationSection);
             
-            // Load templates
-            const templatesData = workspaceConfig.get<any[]>('templates', []);
-            const templates = this.deserializeTemplates(templatesData);
+            // Load prompt text
+            const promptText = workspaceConfig.get<string>('promptText', 'Please review the current code and provide suggestions for improvement.');
             
             // Load schedule configuration
             const scheduleData = workspaceConfig.get<any>('schedule', {});
             const schedule: ScheduleConfiguration = {
-                intervalMs: scheduleData.intervalMs || 300000, // 5 minutes default
+                minimalIntervalMs: scheduleData.minimalIntervalMs || 60000, // 1 minute default
                 isActive: scheduleData.isActive || false,
                 maxRetries: scheduleData.maxRetries || 3
             };
@@ -73,14 +41,12 @@ export class WorkspaceConfigurationRepository implements IConfigurationRepositor
             // Load other settings
             const isEnabled = workspaceConfig.get<boolean>('enabled', false);
             const maxDailyPrompts = workspaceConfig.get<number>('maxDailyPrompts', 50);
-            const enabledTargets = workspaceConfig.get<string[]>('enabledTargets', ['github']);
             
             return new AutoPrompterConfiguration(
-                templates,
+                promptText,
                 schedule,
                 isEnabled,
-                maxDailyPrompts,
-                enabledTargets
+                maxDailyPrompts
             );
         } catch (error) {
             console.warn('Failed to load configuration, using defaults:', error);
@@ -102,9 +68,8 @@ export class WorkspaceConfigurationRepository implements IConfigurationRepositor
 
             const workspaceConfig = vscode.workspace.getConfiguration(this.configurationSection);
             
-            // Serialize and save templates
-            const templatesData = this.serializeTemplates(config.templates);
-            await workspaceConfig.update('templates', templatesData, vscode.ConfigurationTarget.Workspace);
+            // Save prompt text
+            await workspaceConfig.update('promptText', config.promptText, vscode.ConfigurationTarget.Workspace);
             
             // Save schedule configuration
             await workspaceConfig.update('schedule', config.schedule, vscode.ConfigurationTarget.Workspace);
@@ -112,7 +77,6 @@ export class WorkspaceConfigurationRepository implements IConfigurationRepositor
             // Save other settings
             await workspaceConfig.update('enabled', config.isEnabled, vscode.ConfigurationTarget.Workspace);
             await workspaceConfig.update('maxDailyPrompts', config.maxDailyPrompts, vscode.ConfigurationTarget.Workspace);
-            await workspaceConfig.update('enabledTargets', config.enabledTargets, vscode.ConfigurationTarget.Workspace);
             
             console.log('Configuration saved successfully');
         } catch (error) {
@@ -122,7 +86,7 @@ export class WorkspaceConfigurationRepository implements IConfigurationRepositor
     }
 
     /**
-     * Registers a callback to watch for configuration changes
+     * Registers a callback to be called when configuration changes
      * @param callback Function to call when configuration changes
      */
     watch(callback: (config: AutoPrompterConfiguration) => void): void {
@@ -130,157 +94,57 @@ export class WorkspaceConfigurationRepository implements IConfigurationRepositor
     }
 
     /**
-     * Stops watching for configuration changes and cleans up resources
-     */
-    dispose(): void {
-        if (this.watcherDisposable) {
-            this.watcherDisposable.dispose();
-            this.watcherDisposable = undefined;
-        }
-        this.watchers.length = 0;
-    }
-
-    /**
-     * Sets up the VS Code configuration change watcher
-     */
-    private setupConfigurationWatcher(): void {
-        this.watcherDisposable = vscode.workspace.onDidChangeConfiguration(async (event) => {
-            if (event.affectsConfiguration(this.configurationSection)) {
-                try {
-                    const updatedConfig = await this.load();
-                    this.notifyWatchers(updatedConfig);
-                } catch (error) {
-                    console.error('Failed to reload configuration after change:', error);
-                }
-            }
-        });
-    }
-
-    /**
-     * Notifies all registered watchers of configuration changes
-     * @param config The updated configuration
-     */
-    private notifyWatchers(config: AutoPrompterConfiguration): void {
-        this.watchers.forEach(watcher => {
-            try {
-                watcher(config);
-            } catch (error) {
-                console.error('Configuration watcher error:', error);
-            }
-        });
-    }
-
-    /**
-     * Serializes templates to a format suitable for JSON storage
-     * @param templates Templates to serialize
-     * @returns Serialized template data
-     */
-    private serializeTemplates(templates: PromptTemplate[]): any[] {
-        return templates.map(template => ({
-            id: template.id,
-            name: template.name,
-            content: template.content,
-            category: template.category,
-            variables: template.variables.map(variable => ({
-                name: variable.name,
-                type: variable.type,
-                defaultValue: variable.defaultValue,
-                description: variable.description
-            }))
-        }));
-    }
-
-    /**
-     * Deserializes templates from JSON storage format
-     * @param templatesData Serialized template data
-     * @returns Array of PromptTemplate instances
-     */
-    private deserializeTemplates(templatesData: any[]): PromptTemplate[] {
-        const templates: PromptTemplate[] = [];
-        
-        for (const templateData of templatesData) {
-            try {
-                const variables = (templateData.variables || []).map((varData: any) => 
-                    new TemplateVariable(
-                        varData.name,
-                        varData.type,
-                        varData.defaultValue,
-                        varData.description
-                    )
-                );
-                
-                const template = new PromptTemplate(
-                    templateData.id,
-                    templateData.name,
-                    templateData.content,
-                    templateData.category || PromptCategory.General,
-                    variables
-                );
-                
-                templates.push(template);
-            } catch (error) {
-                console.warn(`Failed to deserialize template ${templateData.id}:`, error);
-                // Skip invalid templates rather than failing completely
-            }
-        }
-        
-        return templates;
-    }
-
-    /**
-     * Gets the current workspace configuration section
-     * @returns VS Code workspace configuration
-     */
-    private getWorkspaceConfig(): vscode.WorkspaceConfiguration {
-        return vscode.workspace.getConfiguration(this.configurationSection);
-    }
-
-    /**
-     * Checks if the current workspace has a configuration file
-     * @returns True if configuration exists in workspace
+     * Checks if the workspace has AutoPrompter configuration
+     * @returns true if configuration exists in workspace
      */
     async hasWorkspaceConfiguration(): Promise<boolean> {
-        const workspaceConfig = this.getWorkspaceConfig();
-        const templates = workspaceConfig.get('templates');
-        const schedule = workspaceConfig.get('schedule');
-        const enabled = workspaceConfig.get('enabled');
-        
-        return templates !== undefined || schedule !== undefined || enabled !== undefined;
+        const workspaceConfig = vscode.workspace.getConfiguration(this.configurationSection);
+        const inspect = workspaceConfig.inspect('enabled');
+        return inspect?.workspaceValue !== undefined || 
+               inspect?.workspaceFolderValue !== undefined;
     }
 
     /**
-     * Resets the configuration to default values
+     * Resets configuration to defaults
      */
     async resetToDefaults(): Promise<void> {
         const defaultConfig = AutoPrompterConfiguration.createDefault();
         await this.save(defaultConfig);
     }
 
-    // IConfigurationService interface methods
-    async getPromptTemplates(): Promise<PromptTemplate[]> {
-        const config = await this.load();
-        return config.templates;
+    /**
+     * Disposes of the configuration watcher
+     */
+    dispose(): void {
+        if (this.configurationWatcher) {
+            this.configurationWatcher.dispose();
+            this.configurationWatcher = null;
+        }
+        this.watchers.length = 0;
     }
 
-    async updatePromptTemplate(templateId: TemplateId, template: PromptTemplate): Promise<void> {
+    // IConfigurationService interface methods
+    async getPromptText(): Promise<string> {
         const config = await this.load();
-        const updatedTemplates = config.templates.map(t => 
-            t.id === templateId ? template : t
-        );
-        const updatedConfig = config.withTemplates(updatedTemplates);
+        return config.promptText;
+    }
+
+    async setPromptText(promptText: string): Promise<void> {
+        const config = await this.load();
+        const updatedConfig = config.withPromptText(promptText);
         await this.save(updatedConfig);
     }
 
-    async getScheduleInterval(): Promise<TimeInterval> {
+    async getMinimalInterval(): Promise<TimeInterval> {
         const config = await this.load();
-        return TimeInterval.fromSeconds(config.schedule.intervalMs / 1000);
+        return TimeInterval.fromSeconds(config.schedule.minimalIntervalMs / 1000);
     }
 
-    async setScheduleInterval(interval: TimeInterval): Promise<void> {
+    async setMinimalInterval(interval: TimeInterval): Promise<void> {
         const config = await this.load();
         const updatedSchedule: ScheduleConfiguration = {
             ...config.schedule,
-            intervalMs: interval.ms
+            minimalIntervalMs: interval.ms
         };
         const updatedConfig = config.withSchedule(updatedSchedule);
         await this.save(updatedConfig);
@@ -295,5 +159,34 @@ export class WorkspaceConfigurationRepository implements IConfigurationRepositor
         const config = await this.load();
         const updatedConfig = config.withEnabled(enabled);
         await this.save(updatedConfig);
+    }
+
+    /**
+     * Sets up automatic configuration watching
+     */
+    private setupConfigurationWatcher(): void {
+        this.configurationWatcher = vscode.workspace.onDidChangeConfiguration(async (event) => {
+            if (event.affectsConfiguration(this.configurationSection)) {
+                try {
+                    const updatedConfig = await this.load();
+                    this.notifyWatchers(updatedConfig);
+                } catch (error) {
+                    console.error('Failed to reload configuration:', error);
+                }
+            }
+        });
+    }
+
+    /**
+     * Notifies all registered watchers of configuration changes
+     */
+    private notifyWatchers(config: AutoPrompterConfiguration): void {
+        this.watchers.forEach(watcher => {
+            try {
+                watcher(config);
+            } catch (error) {
+                console.error('Error in configuration watcher:', error);
+            }
+        });
     }
 }

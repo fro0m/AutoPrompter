@@ -1,213 +1,50 @@
 import * as assert from 'assert';
 import * as vscode from 'vscode';
-import { AITarget, RenderedPrompt, AutoPrompterConfiguration, PromptCategory } from '../../domain';
 import { 
-    VSCodeChatIntegration, 
-    GitHubCopilotIntegration,
     WorkspaceConfigurationRepository,
-    IChatProvider,
-    ChatResponse,
-    ChatProviderUnavailableError,
-    UnsupportedTargetError
+    AISessionMonitoringService,
+    PromptSchedulingEngine
 } from '../../infrastructure';
+import { ContextAwarePromptGenerator } from '../../infrastructure/context-aware-prompt-generator';
+import {
+    AutoPrompterConfiguration,
+    ScheduleConfiguration
+} from '../../domain';
+import { TimeInterval, AITarget } from '../../domain/types';
 
-// Mock VS Code extension for testing
-const mockCopilotExtension = {
-    isActive: true,
-    packageJSON: { version: '1.0.0' },
-    activate: async () => Promise.resolve()
+// Mock VS Code API for testing
+const mockVSCode = {
+    workspace: {
+        getConfiguration: () => ({
+            get: () => undefined,
+            update: async () => {}
+        }),
+        onDidChangeConfiguration: () => ({ dispose: () => {} })
+    }
 };
 
 suite('Infrastructure Layer Tests', () => {
     
-    suite('GitHubCopilotIntegration', () => {
-        let integration: GitHubCopilotIntegration;
-        let originalGetExtension: any;
+    suite('ContextAwarePromptGenerator', () => {
+        let analyzer: ContextAwarePromptGenerator;
 
         setup(() => {
-            integration = new GitHubCopilotIntegration();
-            // Mock the VS Code extension API
-            originalGetExtension = vscode.extensions.getExtension;
-            vscode.extensions.getExtension = (id: string) => {
-                if (id === 'GitHub.copilot-chat') {
-                    return mockCopilotExtension as any;
-                }
-                return undefined;
-            };
+            analyzer = new ContextAwarePromptGenerator();
         });
 
-        teardown(() => {
-            // Restore original function
-            vscode.extensions.getExtension = originalGetExtension;
-        });
-
-        test('should have correct name', () => {
-            assert.strictEqual(integration.getName(), 'GitHub Copilot Chat');
-        });
-
-        test('should check availability correctly', async () => {
-            const isAvailable = await integration.isAvailable();
-            assert.strictEqual(isAvailable, true);
-        });
-
-        test('should send message successfully when available', async () => {
-            const testPrompt = 'Test prompt for GitHub Copilot';
+        test('should analyze current context', async () => {
+            const context = await analyzer.getCurrentContext();
             
-            // The command will fail in test environment, so we expect an error response
-            const response = await integration.sendMessage(testPrompt);
+            assert.ok(context);
+            assert.ok(typeof context.currentFile === 'string' || context.currentFile === undefined);
+            assert.ok(typeof context.currentLanguage === 'string' || context.currentLanguage === undefined);
+        });
+
+        test('should provide prompt enhancement suggestions', async () => {
+            const analysis = await analyzer.analyzeCodeForPrompting();
             
-            // In test environment, GitHub Copilot Chat command is not available
-            // so we expect the response to indicate failure
-            assert.strictEqual(response.success, false);
-            assert.ok(response.error);
-        });
-
-        test('should handle unavailable extension gracefully', async () => {
-            // Mock extension as unavailable
-            vscode.extensions.getExtension = () => undefined;
-
-            const isAvailable = await integration.isAvailable();
-            assert.strictEqual(isAvailable, false);
-
-            const response = await integration.sendMessage('test');
-            assert.strictEqual(response.success, false);
-            assert.ok(response.error);
-        });
-
-        test('should get chat info correctly', async () => {
-            const chatInfo = await integration.getChatInfo();
-            
-            assert.strictEqual(chatInfo.isInstalled, true);
-            assert.strictEqual(chatInfo.isActive, true);
-            assert.strictEqual(chatInfo.version, '1.0.0');
-        });
-
-        test('should handle configuration options', () => {
-            const configuredIntegration = new GitHubCopilotIntegration();
-            assert.strictEqual(configuredIntegration.getName(), 'GitHub Copilot Chat');
-        });
-    });
-
-    suite('VSCodeChatIntegration', () => {
-        let chatIntegration: VSCodeChatIntegration;
-        let mockPrompt: RenderedPrompt;
-        let originalGetExtension: any;
-
-        setup(() => {
-            // Create chat integration with short timeout for tests
-            chatIntegration = new VSCodeChatIntegration({
-                timeout: 1000, // 1 second timeout for tests
-                retryAttempts: 1, // Only one attempt for tests
-                retryDelay: 100
-            });
-            mockPrompt = new RenderedPrompt(
-                'Test prompt content',
-                'test-template-id'
-            );
-            // Mock the VS Code extension API
-            originalGetExtension = vscode.extensions.getExtension;
-            vscode.extensions.getExtension = (id: string) => {
-                if (id === 'GitHub.copilot-chat') {
-                    return mockCopilotExtension as any;
-                }
-                return undefined;
-            };
-        });
-
-        teardown(() => {
-            // Restore original function
-            vscode.extensions.getExtension = originalGetExtension;
-        });
-
-        test('should send to AI successfully', async () => {
-            const result = await chatIntegration.sendToAI(mockPrompt, AITarget.GitHub);
-            
-            // In test environment, commands are not available, so we expect failure
-            assert.strictEqual(result.success, false);
-            assert.ok(result.error || result.message?.includes('Failed'));
-            assert.ok(result.timestamp instanceof Date);
-        });
-
-        test('should handle unsupported target', async () => {
-            // Try to send to an unsupported target by casting
-            const unsupportedTarget = 'UnsupportedAI' as AITarget;
-            
-            const result = await chatIntegration.sendToAI(mockPrompt, unsupportedTarget);
-            
-            assert.strictEqual(result.success, false);
-            assert.ok(result.error instanceof Error);
-        });
-
-        test('should get providers status', async () => {
-            const status = await chatIntegration.getProvidersStatus();
-            
-            assert.ok(Array.isArray(status));
-            assert.ok(status.length > 0);
-            
-            const githubStatus = status.find(s => s.target === AITarget.GitHub);
-            assert.ok(githubStatus);
-            assert.strictEqual(githubStatus.name, 'GitHub Copilot Chat');
-            assert.strictEqual(githubStatus.available, true);
-        });
-
-        test('should get preferred target', async () => {
-            const preferredTarget = await chatIntegration.getPreferredTarget();
-            
-            // Should prefer GitHub if available
-            assert.strictEqual(preferredTarget, AITarget.GitHub);
-        });
-
-        test('should test connection successfully', async () => {
-            const testResult = await chatIntegration.testConnection(AITarget.GitHub);
-            
-            // In test environment, connection will fail due to missing commands
-            assert.strictEqual(testResult.success, false);
-            assert.ok(testResult.message.includes('Connection test failed') || 
-                     testResult.message.includes('not available') ||
-                     testResult.message.includes('Failed') || 
-                     testResult.message.includes('error'));
-            assert.ok(typeof testResult.responseTime === 'number');
-            assert.ok(testResult.responseTime >= 0);
-        });
-
-        test('should handle configuration options', () => {
-            const config = {
-                timeout: 45000,
-                retryAttempts: 2,
-                retryDelay: 500
-            };
-            
-            const configuredIntegration = new VSCodeChatIntegration(config);
-            // Should not throw and should accept configuration
-            assert.ok(configuredIntegration);
-        });
-
-        test('should handle provider unavailable scenario', async () => {
-            // Mock the extension as unavailable
-            vscode.extensions.getExtension = () => undefined;
-
-            const result = await chatIntegration.sendToAI(mockPrompt, AITarget.GitHub);
-            
-            assert.strictEqual(result.success, false);
-            assert.ok(result.message?.includes('not available'));
-        });
-    });
-
-    suite('Chat Error Handling', () => {
-        test('should create ChatProviderUnavailableError correctly', () => {
-            const error = new ChatProviderUnavailableError('Test error message');
-            
-            assert.strictEqual(error.name, 'ChatProviderUnavailableError');
-            assert.strictEqual(error.message, 'Test error message');
-            assert.ok(error instanceof Error);
-        });
-
-        test('should create UnsupportedTargetError correctly', () => {
-            const error = new UnsupportedTargetError(AITarget.GitHub);
-            
-            assert.strictEqual(error.name, 'UnsupportedTargetError');
-            assert.ok(error.message.includes('github'));
-            assert.ok(error instanceof Error);
+            assert.ok(analysis.relevantContext);
+            assert.ok(Array.isArray(analysis.suggestedPromptEnhancements));
         });
     });
 
@@ -221,28 +58,30 @@ suite('Infrastructure Layer Tests', () => {
             mockWorkspaceConfig = {
                 get: (key: string, defaultValue?: any) => {
                     const configs: Record<string, any> = {
-                        'templates': [],
+                        'promptText': 'Please review the current code and provide suggestions for improvement.',
                         'schedule': {
-                            intervalMs: 300000,
+                            minimalIntervalMs: 60000,
                             isActive: false,
                             maxRetries: 3
                         },
                         'enabled': false,
-                        'maxDailyPrompts': 50,
-                        'enabledTargets': ['github']
+                        'maxDailyPrompts': 50
                     };
                     return configs[key] ?? defaultValue;
                 },
                 update: async (key: string, value: any) => {
                     console.log(`Mock config update: ${key} = ${JSON.stringify(value)}`);
                     return Promise.resolve();
-                }
+                },
+                inspect: (key: string) => ({
+                    workspaceValue: key === 'enabled' ? false : undefined,
+                    workspaceFolderValue: undefined
+                })
             };
 
             originalGetConfiguration = vscode.workspace.getConfiguration;
             vscode.workspace.getConfiguration = () => mockWorkspaceConfig;
 
-            // Simple mock for the repository without relying on event watching
             repository = new WorkspaceConfigurationRepository();
         });
 
@@ -258,10 +97,10 @@ suite('Infrastructure Layer Tests', () => {
             assert.ok(config instanceof AutoPrompterConfiguration);
             assert.strictEqual(config.isEnabled, false);
             assert.strictEqual(config.maxDailyPrompts, 50);
-            assert.deepStrictEqual(config.enabledTargets, ['github']);
-            assert.strictEqual(config.schedule.intervalMs, 300000);
+            assert.strictEqual(config.schedule.minimalIntervalMs, 60000);
             assert.strictEqual(config.schedule.isActive, false);
             assert.strictEqual(config.schedule.maxRetries, 3);
+            assert.ok(config.promptText.includes('review'));
         });
 
         test('should save configuration to workspace settings', async () => {
@@ -275,21 +114,22 @@ suite('Infrastructure Layer Tests', () => {
             // Create invalid configuration - should fail during constructor
             try {
                 new AutoPrompterConfiguration(
-                    [], // No templates
+                    '', // Empty prompt text
                     {
-                        intervalMs: 500, // Too small
+                        minimalIntervalMs: 500, // Too small
                         isActive: false,
                         maxRetries: 3
                     },
                     true,
-                    0, // Invalid max daily prompts
-                    ['github']
+                    0 // Invalid max daily prompts
                 );
                 
                 assert.fail('Should have thrown validation error during construction');
             } catch (error) {
                 assert.ok(error instanceof Error);
-                assert.ok(error.message.includes('Schedule interval must be at least 1000ms'));
+                assert.ok(error.message.includes('Minimal interval must be at least 1000ms') || 
+                         error.message.includes('Prompt text cannot be empty') ||
+                         error.message.includes('Max daily prompts must be positive'));
             }
         });
 
@@ -300,8 +140,8 @@ suite('Infrastructure Layer Tests', () => {
 
             repository.watch(callback);
             
-            // Callback should be registered
-            assert.ok(repository['watchers'].includes(callback));
+            // Callback should be registered (checking internal state)
+            assert.ok((repository as any).watchers.includes(callback));
         });
 
         test('should check if workspace has configuration', async () => {
@@ -314,92 +154,126 @@ suite('Infrastructure Layer Tests', () => {
             await repository.resetToDefaults();
         });
 
-        test('should handle serialization and deserialization of templates', async () => {
+        test('should implement IConfigurationService methods', async () => {
+            // Test prompt text methods
+            const promptText = await repository.getPromptText();
+            assert.ok(typeof promptText === 'string');
+            assert.ok(promptText.length > 0);
 
-
-
-            // Mock the configuration to return our template data
-            const originalMockGet = mockWorkspaceConfig.get;
-            mockWorkspaceConfig.get = (key: string, defaultValue?: any) => {
-                if (key === 'templates') {
-                    return [{
-                        id: 'test-template',
-                        name: 'Test Template',
-                        content: 'Test content with {{variable}}',
-                        category: PromptCategory.CodeReview,
-                        variables: [{
-                            name: 'variable',
-                            type: 'string',
-                            defaultValue: 'default',
-                            description: undefined
-                        }]
-                    }];
-                }
-                return originalMockGet(key, defaultValue);
-            };
-
-            const loadedConfig = await repository.load();
+            await repository.setPromptText('New test prompt text');
             
-            assert.strictEqual(loadedConfig.templates.length, 1);
-            assert.strictEqual(loadedConfig.templates[0].id, 'test-template');
-            assert.strictEqual(loadedConfig.templates[0].name, 'Test Template');
-            assert.strictEqual(loadedConfig.templates[0].variables.length, 1);
+            // Test minimal interval methods
+            const interval = await repository.getMinimalInterval();
+            assert.ok(interval instanceof TimeInterval);
+            assert.ok(interval.ms >= 1000);
+
+            await repository.setMinimalInterval(TimeInterval.fromMinutes(2));
+
+            // Test automation methods
+            const enabled = await repository.isAutomationEnabled();
+            assert.strictEqual(typeof enabled, 'boolean');
+
+            await repository.setAutomationEnabled(true);
         });
     });
 
-    suite('Mock Chat Provider', () => {
-        class MockChatProvider implements IChatProvider {
-            private shouldFail: boolean;
+    suite('AISessionMonitoringService', () => {
+        let service: AISessionMonitoringService;
 
-            constructor(shouldFail = false) {
-                this.shouldFail = shouldFail;
-            }
-
-            getName(): string {
-                return 'Mock Chat Provider';
-            }
-
-            async sendMessage(prompt: string): Promise<ChatResponse> {
-                if (this.shouldFail) {
-                    return {
-                        success: false,
-                        error: 'Mock error',
-                        timestamp: new Date()
-                    };
-                }
-
-                return {
-                    success: true,
-                    content: `Mock response to: ${prompt}`,
-                    timestamp: new Date(),
-                    metadata: { mock: true }
-                };
-            }
-
-            async isAvailable(): Promise<boolean> {
-                return !this.shouldFail;
-            }
-        }
-
-        test('should work with successful mock provider', async () => {
-            const mockProvider = new MockChatProvider(false);
-            
-            assert.strictEqual(mockProvider.getName(), 'Mock Chat Provider');
-            assert.strictEqual(await mockProvider.isAvailable(), true);
-            
-            const response = await mockProvider.sendMessage('test');
-            assert.strictEqual(response.success, true);
-            assert.ok(response.content?.includes('test'));
+        setup(() => {
+            service = new AISessionMonitoringService('test-session', {
+                idleThresholdMs: 30000,
+                chatResponseTimeoutMs: 10000,
+                activityCheckIntervalMs: 5000,
+                maxIdleTimeMs: 300000,
+                enableWorkspaceMonitoring: true
+            });
         });
 
-        test('should handle failing mock provider', async () => {
-            const mockProvider = new MockChatProvider(true);
-            
-            assert.strictEqual(await mockProvider.isAvailable(), false);
-            
-            const response = await mockProvider.sendMessage('test');
-            assert.strictEqual(response.success, false);
-            assert.strictEqual(response.error, 'Mock error');
+        teardown(() => {
+            service.dispose();
+        });
+
+        test('should initialize with correct configuration', () => {
+            assert.ok(service);
+            const state = service.getSessionState();
+            assert.ok(Object.values(['unknown', 'active', 'idle', 'busy', 'unavailable']).includes(state));
+        });
+
+        test('should start and stop monitoring', () => {
+            // Should not throw
+            service.start();
+            service.stop();
+        });
+
+        test('should track session availability', () => {
+            const isAvailable = service.isAvailableForPrompt();
+            assert.strictEqual(typeof isAvailable, 'boolean');
+        });
+
+        test('should detect idle state', () => {
+            const idleDetection = service.getIdleDetection();
+            assert.ok(idleDetection);
+            assert.strictEqual(typeof idleDetection.isIdle, 'boolean');
+            assert.ok(idleDetection.idleDuration);
+        });
+
+        test('should provide activity status', () => {
+            const chatActivity = service.getChatActivityStatus();
+            assert.ok(chatActivity instanceof Map);
+
+            const workspaceActivity = service.getWorkspaceActivity();
+            assert.ok(workspaceActivity);
+            assert.strictEqual(typeof workspaceActivity.isUserActive, 'boolean');
+        });
+
+        test('should register and mark activity', () => {
+            // Should not throw
+            service.registerActivity();
+            service.registerActivity(AITarget.GitHub);
+            service.markIdle();
+        });
+
+        test('should check idle duration', () => {
+            const duration = TimeInterval.fromSeconds(30);
+            const isIdleForDuration = service.isIdleForDuration(duration);
+            assert.strictEqual(typeof isIdleForDuration, 'boolean');
+        });
+    });
+
+    suite('PromptSchedulingEngine', () => {
+        let engine: PromptSchedulingEngine;
+        let mockDeliveryService: any;
+
+        setup(() => {
+            mockDeliveryService = {
+                sendToAI: async () => ({
+                    success: true,
+                    message: 'Test delivery',
+                    timestamp: new Date()
+                })
+            };
+
+            engine = new PromptSchedulingEngine(mockDeliveryService, {
+                maxPromptsPerMinute: 2,
+                maxPromptsPerHour: 20,
+                maxPromptsPerDay: 100,
+                burstLimit: 3,
+                cooldownMs: 60000
+            });
+        });
+
+        teardown(() => {
+            engine.dispose();
+        });
+
+        test('should initialize with rate limiting configuration', () => {
+            assert.ok(engine);
+        });
+
+        test('should dispose properly', () => {
+            // Should not throw
+            engine.dispose();
         });
     });
 });

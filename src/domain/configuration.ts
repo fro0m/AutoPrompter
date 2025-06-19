@@ -1,4 +1,3 @@
-import { PromptTemplate } from './value-objects';
 import { TemplateId, PromptCategory } from '../domain/types';
 import { ScheduleConfiguration } from './prompt-scheduler';
 
@@ -7,30 +6,31 @@ import { ScheduleConfiguration } from './prompt-scheduler';
  */
 export class AutoPrompterConfiguration {
     constructor(
-        public readonly templates: PromptTemplate[],
+        public readonly promptText: string,
         public readonly schedule: ScheduleConfiguration,
         public readonly isEnabled: boolean = true,
-        public readonly maxDailyPrompts: number = 100,
-        public readonly enabledTargets: string[] = ['github']
+        public readonly maxDailyPrompts: number = 100
     ) {
-        if (schedule.intervalMs < 1000) {
-            throw new Error('Schedule interval must be at least 1000ms');
+        if (schedule.minimalIntervalMs < 1000) {
+            throw new Error('Minimal interval must be at least 1000ms');
         }
         if (maxDailyPrompts < 1) {
             throw new Error('Max daily prompts must be positive');
         }
+        if (!promptText.trim()) {
+            throw new Error('Prompt text cannot be empty');
+        }
     }
 
     /**
-     * Creates a new configuration with updated templates
+     * Creates a new configuration with updated prompt text
      */
-    withTemplates(templates: PromptTemplate[]): AutoPrompterConfiguration {
+    withPromptText(promptText: string): AutoPrompterConfiguration {
         return new AutoPrompterConfiguration(
-            templates,
+            promptText,
             this.schedule,
             this.isEnabled,
-            this.maxDailyPrompts,
-            this.enabledTargets
+            this.maxDailyPrompts
         );
     }
 
@@ -39,11 +39,10 @@ export class AutoPrompterConfiguration {
      */
     withSchedule(schedule: ScheduleConfiguration): AutoPrompterConfiguration {
         return new AutoPrompterConfiguration(
-            this.templates,
+            this.promptText,
             schedule,
             this.isEnabled,
-            this.maxDailyPrompts,
-            this.enabledTargets
+            this.maxDailyPrompts
         );
     }
 
@@ -52,19 +51,11 @@ export class AutoPrompterConfiguration {
      */
     withEnabled(enabled: boolean): AutoPrompterConfiguration {
         return new AutoPrompterConfiguration(
-            this.templates,
+            this.promptText,
             this.schedule,
             enabled,
-            this.maxDailyPrompts,
-            this.enabledTargets
+            this.maxDailyPrompts
         );
-    }
-
-    /**
-     * Gets a template by ID
-     */
-    getTemplate(templateId: TemplateId): PromptTemplate | null {
-        return this.templates.find(t => t.id === templateId) || null;
     }
 
     /**
@@ -73,8 +64,8 @@ export class AutoPrompterConfiguration {
     validate(): string[] {
         const errors: string[] = [];
 
-        if (this.schedule.intervalMs < 1000) {
-            errors.push('Schedule interval must be at least 1000ms');
+        if (this.schedule.minimalIntervalMs < 1000) {
+            errors.push('Minimal interval must be at least 1000ms');
         }
 
         if (this.schedule.maxRetries < 0) {
@@ -85,15 +76,8 @@ export class AutoPrompterConfiguration {
             errors.push('Max daily prompts must be positive');
         }
 
-        if (this.templates.length === 0) {
-            errors.push('At least one template must be configured');
-        }
-
-        // Check for duplicate template IDs
-        const templateIds = this.templates.map(t => t.id);
-        const uniqueIds = new Set(templateIds);
-        if (templateIds.length !== uniqueIds.size) {
-            errors.push('Template IDs must be unique');
+        if (!this.promptText.trim()) {
+            errors.push('Prompt text cannot be empty');
         }
 
         return errors;
@@ -103,22 +87,14 @@ export class AutoPrompterConfiguration {
      * Creates a default configuration
      */
     static createDefault(): AutoPrompterConfiguration {
-        const defaultTemplate = new PromptTemplate(
-            'default-general',
-            'General Code Review',
-            'Please review the current code and provide suggestions for improvement.',
-            PromptCategory.CodeReview,
-            []
-        );
-
         const defaultSchedule: ScheduleConfiguration = {
-            intervalMs: 300000, // 5 minutes
+            minimalIntervalMs: 60000, // 1 minute minimal interval
             isActive: false,
             maxRetries: 3
         };
 
         return new AutoPrompterConfiguration(
-            [defaultTemplate],
+            'Please review the current code and provide suggestions for improvement.',
             defaultSchedule,
             false, // Start disabled by default
             50

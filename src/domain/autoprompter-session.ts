@@ -66,18 +66,16 @@ export class AutoPrompterSession {
 
     updateConfiguration(newConfiguration: Partial<{
         schedule: ScheduleConfiguration;
-        templates: any[];
-        enabledTargets: string[];
+        promptText: string;
         maxDailyPrompts: number;
         isEnabled: boolean;
     }>): void {
         // Create new configuration instance with updates
         const updatedConfig = new AutoPrompterConfiguration(
-            newConfiguration.templates ?? this.configuration.templates,
+            newConfiguration.promptText ?? this.configuration.promptText,
             newConfiguration.schedule ?? this.configuration.schedule,
             newConfiguration.isEnabled ?? this.configuration.isEnabled,
-            newConfiguration.maxDailyPrompts ?? this.configuration.maxDailyPrompts,
-            newConfiguration.enabledTargets ?? this.configuration.enabledTargets
+            newConfiguration.maxDailyPrompts ?? this.configuration.maxDailyPrompts
         );
         
         this.configuration = updatedConfig;

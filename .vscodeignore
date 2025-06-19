@@ -26,6 +26,7 @@ node_modules/**
 .gitignore
 
 # Documentation and config (keep only essential)
+ai-toolkit-files
 ai-toolkit-files/**
 autoprompter.code-workspace
 package-lock.json
@@ -45,4 +46,7 @@ Thumbs.db
 
 # Backup files
 *.backup/**
-**/*.backup 
+**/*.backup
+
+# Shell scripts and development tools
+**/*.sh 

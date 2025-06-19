@@ -6,7 +6,7 @@
  */
 
 import * as vscode from 'vscode';
-import { AutoPrompterConfiguration, PromptTemplate } from '../domain';
+import { AutoPrompterConfiguration } from '../domain';
 
 /**
  * Interface for the sidebar provider
@@ -19,12 +19,6 @@ export interface ISidebarProvider extends vscode.WebviewViewProvider {
     updateConfiguration(config: AutoPrompterConfiguration): Promise<void>;
 
     /**
-     * Updates the template list in the sidebar
-     * @param templates The current templates
-     */
-    updateTemplates(templates: PromptTemplate[]): Promise<void>;
-
-    /**
      * Shows a status message in the sidebar
      * @param message The message to display
      * @param isError Whether this is an error message
@@ -33,21 +27,19 @@ export interface ISidebarProvider extends vscode.WebviewViewProvider {
 }
 
 /**
- * Interface for webview content management
+ * Interface for webview management
  */
 export interface IWebviewManager {
     /**
      * Gets the HTML content for the webview
      * @param webview The webview instance
      * @param extensionUri The extension URI for resource loading
-     * @returns HTML content string
      */
     getHtmlContent(webview: vscode.Webview, extensionUri: vscode.Uri): string;
 
     /**
      * Handles messages from the webview
      * @param message The message from the webview
-     * @returns Promise resolving to response data
      */
     handleMessage(message: any): Promise<any>;
 }
@@ -63,61 +55,54 @@ export interface IUIStateManager {
 
     /**
      * Updates the UI state
-     * @param state Partial state update
+     * @param updates Partial state updates
      */
-    updateState(state: Partial<UIState>): void;
+    updateState(updates: Partial<UIState>): void;
 
     /**
      * Resets the UI state to defaults
      */
-    resetState(): void;
+    reset(): void;
 }
 
 /**
- * UI State representation
+ * UI State structure
  */
 export interface UIState {
     isAutomationEnabled: boolean;
-    currentTemplate: string | null;
-    scheduleInterval: number;
+    scheduleInterval: number; // milliseconds
+    currentPromptText: string;
+    isConnected: boolean;
+    errorMessage: string | null;
     lastExecutionTime: Date | null;
     executionCount: number;
-    errorMessage: string | null;
-    isConnected: boolean;
 }
 
 /**
- * WebView message types
+ * WebView Message Types
  */
 export enum WebViewMessageType {
-    // Configuration messages
-    UPDATE_CONFIG = 'updateConfig',
-    GET_CONFIG = 'getConfig',
-    RESET_CONFIG = 'resetConfig',
+    // Configuration
+    READY = 'READY',
+    GET_CONFIG = 'GET_CONFIG',
+    UPDATE_CONFIG = 'UPDATE_CONFIG',
     
-    // Template messages
-    ADD_TEMPLATE = 'addTemplate',
-    UPDATE_TEMPLATE = 'updateTemplate',
-    DELETE_TEMPLATE = 'deleteTemplate',
-    GET_TEMPLATES = 'getTemplates',
+    // Automation Control
+    TOGGLE_AUTOMATION = 'TOGGLE_AUTOMATION',
+    UPDATE_INTERVAL = 'UPDATE_INTERVAL',
+    EXECUTE_NOW = 'EXECUTE_NOW',
     
-    // Control messages
-    START_AUTOMATION = 'startAutomation',
-    STOP_AUTOMATION = 'stopAutomation',
-    EXECUTE_NOW = 'executeNow',
-    TEST_CONNECTION = 'testConnection',
+    // Prompt Management
+    SET_PROMPT_TEXT = 'SET_PROMPT_TEXT',
     
-    // Status messages
-    GET_STATUS = 'getStatus',
-    SHOW_STATUS = 'showStatus',
-    
-    // UI messages
-    READY = 'ready',
-    ERROR = 'error'
+    // Status
+    GET_STATUS = 'GET_STATUS',
+    SHOW_STATUS = 'SHOW_STATUS',
+    UPDATE_STATUS = 'UPDATE_STATUS'
 }
 
 /**
- * WebView message structure
+ * WebView Message structure
  */
 export interface WebViewMessage {
     type: WebViewMessageType;
@@ -126,7 +111,7 @@ export interface WebViewMessage {
 }
 
 /**
- * WebView response structure
+ * WebView Response structure
  */
 export interface WebViewResponse {
     success: boolean;

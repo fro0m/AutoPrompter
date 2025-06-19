@@ -18,7 +18,7 @@ Before building and installing the extension, ensure you have:
 - **Node.js** (version 14 or higher) - [Download here](https://nodejs.org/)
 - **npm** (comes with Node.js)
 - **Git** - [Download here](https://git-scm.com/)
-- **VS Code** or **Cursor** IDE installed
+- **VS Code** (version 1.95.0 or higher) or **Cursor** IDE installed
 
 ## Building the Extension
 
@@ -111,8 +111,8 @@ This will create a file named `autoprompter-1.0.0.vsix` in the project root.
 After installation, verify the extension is working:
 
 1. **Check Extensions Panel**: Look for "AutoPrompter" in the installed extensions list
-2. **Look for the Sidebar**: You should see an AutoPrompter icon in the Activity Bar
-3. **Open AutoPrompter Panel**: Click the icon to open the configuration sidebar
+2. **Look for the Sidebar**: You should see an AutoPrompter robot icon (🤖) in the Activity Bar on the left side
+3. **Open AutoPrompter Panel**: Click the robot icon to open the AutoPrompter sidebar panel
 4. **Check Status**: The extension should show as "Active" in the bottom status bar
 
 ## Development
