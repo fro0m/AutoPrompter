@@ -259,6 +259,8 @@ suite('Infrastructure Layer Tests', () => {
         });
     });
 
+
+
     suite('AutoPrompterSidebarProvider', () => {
         test('should handle toggle automation message correctly', async () => {
             const mockConfigUseCase = {
@@ -361,4 +363,6 @@ suite('Infrastructure Layer Tests', () => {
             sinon.assert.calledWith(mockConfigUseCase.setAutomationEnabled, true);
         });
     });
+
+
 });
