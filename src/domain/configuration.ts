@@ -1,4 +1,3 @@
-import { TemplateId, PromptCategory } from '../domain/types';
 import { ScheduleConfiguration } from './prompt-scheduler';
 
 /**

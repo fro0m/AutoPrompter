@@ -62,6 +62,11 @@
         },
         "commands": [
             {
+                "command": "autoprompter.openSidebar",
+                "title": "Open AutoPrompter Sidebar",
+                "category": "AutoPrompter"
+            },
+            {
                 "command": "autoprompter.toggleAutomation",
                 "title": "Toggle AutoPrompter Automation",
                 "icon": "$(play)"
@@ -78,19 +83,25 @@
                 "autoprompter.promptText": {
                     "type": "string",
                     "default": "Please review the current code and provide suggestions for improvement.",
-                    "description": "The prompt text to send to GitHub Copilot"
+                    "description": "The prompt text to send to GitHub Copilot",
+                    "markdownDescription": "The prompt text to send to GitHub Copilot Chat. This setting is **workspace-specific** - each project can have its own prompt.",
+                    "scope": "resource"
                 },
                 "autoprompter.minimalIntervalMs": {
                     "type": "number",
                     "default": 60000,
                     "minimum": 1000,
                     "maximum": 600000,
-                    "description": "Minimal interval between prompts in milliseconds (1-10 minutes)"
+                    "description": "Minimal interval between prompts in milliseconds (1-10 minutes)",
+                    "markdownDescription": "Minimal interval between prompts in milliseconds (1-10 minutes). This setting is **workspace-specific** - each project can have its own interval.",
+                    "scope": "resource"
                 },
                 "autoprompter.enabled": {
                     "type": "boolean",
                     "default": false,
-                    "description": "Whether automation is enabled"
+                    "description": "Whether automation is enabled",
+                    "markdownDescription": "Whether automation is enabled for this workspace. This setting is **workspace-specific** - each project can have its own automation state.",
+                    "scope": "resource"
                 }
             }
         }
@@ -101,8 +112,20 @@
         "watch": "tsc -watch -p ./",
         "pretest": "npm run compile && npm run lint",
         "lint": "eslint src --ext ts",
+        "lint:fix": "eslint src --ext ts --fix",
         "test": "node ./out/test/runTest.js",
-        "package": "vsce package"
+        "test:unit": "./run_tests.sh --unit-only",
+        "test:integration": "./run_tests.sh --integration-only",
+        "test:extension": "./run_tests.sh --extension-only",
+        "test:watch": "./run_tests.sh --watch",
+        "test:coverage": "./run_tests.sh --coverage",
+        "test:verbose": "./run_tests.sh --verbose",
+        "build": "./build.sh",
+        "build:clean": "./build.sh --clean",
+        "build:fast": "./build.sh --skip-tests",
+        "build:watch": "./build.sh --watch",
+        "package": "vsce package",
+        "package:install": "code --install-extension *.vsix"
     },
     "devDependencies": {
         "@types/assert": "^1.5.11",
@@ -116,12 +139,13 @@
         "@typescript-eslint/parser": "^5.45.0",
         "@vscode/test-electron": "^2.5.2",
         "@vscode/vsce": "^2.15.0",
+        "c8": "^10.1.2",
         "eslint": "^8.28.0",
         "glob": "^8.0.3",
         "mocha": "^10.1.0",
+        "nyc": "^17.1.0",
         "sinon": "^21.0.0",
-        "typescript": "^5.8.3",
-        "vscode": "^1.1.34"
+        "typescript": "^5.8.3"
     },
     "dependencies": {
         "jsonschema": "^1.4.1"

@@ -7,8 +7,8 @@ import { TimeInterval } from '../domain/value-objects';
  * Workspace Configuration Repository
  * 
  * Implements configuration persistence using VS Code's workspace configuration system.
- * Provides a clean abstraction over VS Code's configuration API with proper error handling
- * and validation for AutoPrompter settings.
+ * Provides workspace-specific configuration storage, ensuring each project has its own
+ * AutoPrompter settings that are saved independently from other projects.
  */
 export class WorkspaceConfigurationRepository implements IConfigurationRepository, IConfigurationService {
     private readonly configurationSection = 'autoprompter';
@@ -21,33 +21,53 @@ export class WorkspaceConfigurationRepository implements IConfigurationRepositor
 
     /**
      * Loads the current configuration from VS Code workspace settings
+     * Prioritizes workspace-specific settings over user/global settings
      * @returns Promise resolving to AutoPrompterConfiguration
      */
     async load(): Promise<AutoPrompterConfiguration> {
         try {
             const workspaceConfig = vscode.workspace.getConfiguration(this.configurationSection);
             
-            // Load prompt text
-            const promptText = workspaceConfig.get<string>('promptText', 'Please review the current code and provide suggestions for improvement.');
+            // Load prompt text with workspace priority
+            const promptTextInspect = workspaceConfig.inspect<string>('promptText');
+            const promptText = this.getWorkspaceValue(promptTextInspect, 'Please review the current code and provide suggestions for improvement.');
             
-            // Load schedule configuration
-            const scheduleData = workspaceConfig.get<any>('schedule', {});
+            // Load minimal interval with workspace priority
+            const intervalInspect = workspaceConfig.inspect<number>('minimalIntervalMs');
+            const minimalIntervalMs = this.getWorkspaceValue(intervalInspect, 60000);
+            
+            // Load enabled state with workspace priority
+            const enabledInspect = workspaceConfig.inspect<boolean>('enabled');
+            const isEnabled = this.getWorkspaceValue(enabledInspect, false);
+            
+            // Create schedule configuration
             const schedule: ScheduleConfiguration = {
-                minimalIntervalMs: scheduleData.minimalIntervalMs || 60000, // 1 minute default
-                isActive: scheduleData.isActive || false,
-                maxRetries: scheduleData.maxRetries || 3
+                minimalIntervalMs: minimalIntervalMs,
+                isActive: isEnabled, // Active when automation is enabled
+                maxRetries: 3 // Default value
             };
             
-            // Load other settings
-            const isEnabled = workspaceConfig.get<boolean>('enabled', false);
-            const maxDailyPrompts = workspaceConfig.get<number>('maxDailyPrompts', 50);
+            // Default max daily prompts
+            const maxDailyPrompts = 50;
             
-            return new AutoPrompterConfiguration(
+            const config = new AutoPrompterConfiguration(
                 promptText,
                 schedule,
                 isEnabled,
                 maxDailyPrompts
             );
+            
+            // Log configuration source information
+            const configSource = this.getConfigurationSource();
+            console.log('Loaded configuration:', {
+                promptText: promptText.substring(0, 50) + '...',
+                minimalIntervalMs,
+                isEnabled,
+                maxDailyPrompts,
+                source: configSource
+            });
+            
+            return config;
         } catch (error) {
             console.warn('Failed to load configuration, using defaults:', error);
             return AutoPrompterConfiguration.createDefault();
@@ -56,6 +76,7 @@ export class WorkspaceConfigurationRepository implements IConfigurationRepositor
 
     /**
      * Saves the configuration to VS Code workspace settings
+     * Always saves to workspace scope to ensure per-project configuration
      * @param config Configuration to save
      */
     async save(config: AutoPrompterConfiguration): Promise<void> {
@@ -68,17 +89,20 @@ export class WorkspaceConfigurationRepository implements IConfigurationRepositor
 
             const workspaceConfig = vscode.workspace.getConfiguration(this.configurationSection);
             
-            // Save prompt text
-            await workspaceConfig.update('promptText', config.promptText, vscode.ConfigurationTarget.Workspace);
+            // Always save to workspace scope to ensure per-project settings
+            const targetScope = this.getConfigurationTarget();
             
-            // Save schedule configuration
-            await workspaceConfig.update('schedule', config.schedule, vscode.ConfigurationTarget.Workspace);
+            await workspaceConfig.update('promptText', config.promptText, targetScope);
+            await workspaceConfig.update('minimalIntervalMs', config.schedule.minimalIntervalMs, targetScope);
+            await workspaceConfig.update('enabled', config.isEnabled, targetScope);
             
-            // Save other settings
-            await workspaceConfig.update('enabled', config.isEnabled, vscode.ConfigurationTarget.Workspace);
-            await workspaceConfig.update('maxDailyPrompts', config.maxDailyPrompts, vscode.ConfigurationTarget.Workspace);
-            
-            console.log('Configuration saved successfully');
+            console.log('Configuration saved successfully:', {
+                promptText: config.promptText.substring(0, 50) + '...',
+                minimalIntervalMs: config.schedule.minimalIntervalMs,
+                enabled: config.isEnabled,
+                scope: this.getTargetScopeName(targetScope),
+                workspace: vscode.workspace.name || 'Untitled'
+            });
         } catch (error) {
             console.error('Failed to save configuration:', error);
             throw new Error(`Failed to save configuration: ${error instanceof Error ? error.message : String(error)}`);
@@ -99,17 +123,90 @@ export class WorkspaceConfigurationRepository implements IConfigurationRepositor
      */
     async hasWorkspaceConfiguration(): Promise<boolean> {
         const workspaceConfig = vscode.workspace.getConfiguration(this.configurationSection);
-        const inspect = workspaceConfig.inspect('enabled');
-        return inspect?.workspaceValue !== undefined || 
-               inspect?.workspaceFolderValue !== undefined;
+        const enabledInspect = workspaceConfig.inspect('enabled');
+        const promptInspect = workspaceConfig.inspect('promptText');
+        const intervalInspect = workspaceConfig.inspect('minimalIntervalMs');
+        
+        return (enabledInspect?.workspaceValue !== undefined || 
+                enabledInspect?.workspaceFolderValue !== undefined) ||
+               (promptInspect?.workspaceValue !== undefined || 
+                promptInspect?.workspaceFolderValue !== undefined) ||
+               (intervalInspect?.workspaceValue !== undefined || 
+                intervalInspect?.workspaceFolderValue !== undefined);
     }
 
     /**
-     * Resets configuration to defaults
+     * Checks if the current workspace has specific AutoPrompter settings
+     * @returns Object with details about workspace-specific settings
+     */
+    async getWorkspaceConfigurationInfo(): Promise<{
+        hasWorkspaceSettings: boolean;
+        workspaceName: string | undefined;
+        settingsLocation: string;
+        configuredSettings: string[];
+    }> {
+        const workspaceConfig = vscode.workspace.getConfiguration(this.configurationSection);
+        const workspaceName = vscode.workspace.name;
+        
+        const configuredSettings: string[] = [];
+        
+        // Check each setting for workspace-specific values
+        const settings = ['promptText', 'minimalIntervalMs', 'enabled'];
+        for (const setting of settings) {
+            const inspect = workspaceConfig.inspect(setting);
+            if (inspect?.workspaceValue !== undefined || inspect?.workspaceFolderValue !== undefined) {
+                configuredSettings.push(setting);
+            }
+        }
+        
+        const hasWorkspaceSettings = configuredSettings.length > 0;
+        const settingsLocation = this.getSettingsLocation();
+        
+        return {
+            hasWorkspaceSettings,
+            workspaceName,
+            settingsLocation,
+            configuredSettings
+        };
+    }
+
+    /**
+     * Resets configuration to defaults for the current workspace
      */
     async resetToDefaults(): Promise<void> {
         const defaultConfig = AutoPrompterConfiguration.createDefault();
         await this.save(defaultConfig);
+    }
+
+    /**
+     * Copies settings from user/global scope to workspace scope
+     */
+    async copyGlobalToWorkspace(): Promise<void> {
+        const workspaceConfig = vscode.workspace.getConfiguration(this.configurationSection);
+        
+        // Get global values
+        const promptInspect = workspaceConfig.inspect<string>('promptText');
+        const intervalInspect = workspaceConfig.inspect<number>('minimalIntervalMs');
+        const enabledInspect = workspaceConfig.inspect<boolean>('enabled');
+        
+        const globalPrompt = promptInspect?.globalValue || promptInspect?.defaultValue;
+        const globalInterval = intervalInspect?.globalValue || intervalInspect?.defaultValue;
+        const globalEnabled = enabledInspect?.globalValue || enabledInspect?.defaultValue;
+        
+        // Save to workspace
+        const targetScope = this.getConfigurationTarget();
+        
+        if (globalPrompt !== undefined) {
+            await workspaceConfig.update('promptText', globalPrompt, targetScope);
+        }
+        if (globalInterval !== undefined) {
+            await workspaceConfig.update('minimalIntervalMs', globalInterval, targetScope);
+        }
+        if (globalEnabled !== undefined) {
+            await workspaceConfig.update('enabled', globalEnabled, targetScope);
+        }
+        
+        console.log('Copied global settings to workspace');
     }
 
     /**
@@ -159,6 +256,89 @@ export class WorkspaceConfigurationRepository implements IConfigurationRepositor
         const config = await this.load();
         const updatedConfig = config.withEnabled(enabled);
         await this.save(updatedConfig);
+    }
+
+    /**
+     * Gets the workspace-specific value, falling back to global then default
+     */
+    private getWorkspaceValue<T>(inspect: { 
+        workspaceFolderValue?: T; 
+        workspaceValue?: T; 
+        globalValue?: T; 
+        defaultValue?: T; 
+    } | undefined, defaultValue: T): T {
+        if (!inspect) return defaultValue;
+        
+        // Priority: workspaceFolder > workspace > global > default
+        return inspect.workspaceFolderValue ?? 
+               inspect.workspaceValue ?? 
+               inspect.globalValue ?? 
+               inspect.defaultValue ?? 
+               defaultValue;
+    }
+
+    /**
+     * Gets the appropriate configuration target based on workspace type
+     */
+    private getConfigurationTarget(): vscode.ConfigurationTarget {
+        // If we have a workspace folder, use WorkspaceFolder scope
+        // If we have a workspace but no folders, use Workspace scope
+        // Otherwise fall back to Global scope
+        
+        if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
+            return vscode.ConfigurationTarget.WorkspaceFolder;
+        } else if (vscode.workspace.workspaceFile) {
+            return vscode.ConfigurationTarget.Workspace;
+        } else {
+            return vscode.ConfigurationTarget.Global;
+        }
+    }
+
+    /**
+     * Gets a human-readable name for the configuration target
+     */
+    private getTargetScopeName(target: vscode.ConfigurationTarget): string {
+        switch (target) {
+            case vscode.ConfigurationTarget.WorkspaceFolder:
+                return 'Workspace Folder';
+            case vscode.ConfigurationTarget.Workspace:
+                return 'Workspace';
+            case vscode.ConfigurationTarget.Global:
+                return 'Global (User)';
+            default:
+                return 'Unknown';
+        }
+    }
+
+    /**
+     * Gets information about where configuration is being loaded from
+     */
+    private getConfigurationSource(): string {
+        const workspaceConfig = vscode.workspace.getConfiguration(this.configurationSection);
+        const enabledInspect = workspaceConfig.inspect('enabled');
+        
+        if (enabledInspect?.workspaceFolderValue !== undefined) {
+            return 'Workspace Folder';
+        } else if (enabledInspect?.workspaceValue !== undefined) {
+            return 'Workspace';
+        } else if (enabledInspect?.globalValue !== undefined) {
+            return 'Global (User)';
+        } else {
+            return 'Default';
+        }
+    }
+
+    /**
+     * Gets the location where settings are stored
+     */
+    private getSettingsLocation(): string {
+        if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
+            return '.vscode/settings.json in workspace folder';
+        } else if (vscode.workspace.workspaceFile) {
+            return 'workspace settings in .code-workspace file';
+        } else {
+            return 'user settings.json';
+        }
     }
 
     /**

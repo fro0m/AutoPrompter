@@ -1,0 +1,83 @@
+{
+  "testFramework": {
+    "name": "AutoPrompter Test Framework",
+    "version": "1.0.0",
+    "timeout": 30000,
+    "retries": 2,
+    "parallel": false
+  },
+  "testSuites": {
+    "unit": {
+      "pattern": "out/test/suite/**/*.test.js",
+      "timeout": 5000,
+      "setup": "src/test/setup/unit-setup.ts",
+      "teardown": "src/test/setup/unit-teardown.ts"
+    },
+    "integration": {
+      "pattern": "out/test/integration/**/*.test.js",
+      "timeout": 15000,
+      "setup": "src/test/setup/integration-setup.ts",
+      "teardown": "src/test/setup/integration-teardown.ts"
+    },
+    "extension": {
+      "pattern": "out/test/suite/**/*.test.js",
+      "timeout": 30000,
+      "setup": "src/test/setup/extension-setup.ts",
+      "teardown": "src/test/setup/extension-teardown.ts",
+      "vscode": true
+    }
+  },
+  "coverage": {
+    "enabled": true,
+    "threshold": {
+      "lines": 70,
+      "functions": 70,
+      "branches": 60,
+      "statements": 70
+    },
+    "exclude": [
+      "src/test/**",
+      "src/**/*.test.ts",
+      "src/**/*.spec.ts"
+    ]
+  },
+  "reporting": {
+    "formats": ["text", "html", "json"],
+    "directory": "test-results",
+    "junit": true,
+    "mocha": {
+      "reporter": "spec",
+      "colors": true,
+      "bail": false,
+      "grep": null
+    }
+  },
+  "environment": {
+    "variables": {
+      "NODE_ENV": "test",
+      "LOG_LEVEL": "error",
+      "VSCODE_TEST_MODE": "true"
+    },
+    "vscode": {
+      "version": "stable",
+      "platform": "auto",
+      "extensions": []
+    }
+  },
+  "mocking": {
+    "vscode": {
+      "workspace": true,
+      "window": true,
+      "commands": true,
+      "configuration": true
+    },
+    "filesystem": true,
+    "network": false
+  },
+  "performance": {
+    "measureTiming": true,
+    "memoryUsage": true,
+    "slowTestThreshold": 2000,
+    "memoryLeakDetection": true
+  }
+} 

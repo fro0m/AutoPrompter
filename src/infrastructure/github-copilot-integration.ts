@@ -5,7 +5,7 @@ import { IChatProvider, ChatResponse, ChatProviderUnavailableError } from './cha
  * GitHub Copilot Chat Integration
  * 
  * Integrates with GitHub Copilot Chat extension to send prompts
- * and receive responses through VS Code's extension API
+ * directly into the chat interface and submit them automatically
  */
 export class GitHubCopilotIntegration implements IChatProvider {
     constructor() {
@@ -32,8 +32,8 @@ export class GitHubCopilotIntegration implements IChatProvider {
                 throw new ChatProviderUnavailableError(errorMessage);
             }
 
-            // Send the message through command API
-            await this.sendThroughCommand(prompt);
+            // Send the message directly through VS Code chat API
+            await this.sendDirectlyToChat(prompt);
 
             return {
                 success: true,
@@ -42,12 +42,12 @@ export class GitHubCopilotIntegration implements IChatProvider {
                 metadata: {
                     provider: 'github-copilot',
                     promptLength: prompt.length,
-                    method: 'command-api'
+                    method: 'direct-chat-api'
                 }
             };
 
         } catch (error) {
-            console.error('GitHub Copilot integration error:', error);
+            console.error('Error sending message to GitHub Copilot:', error);
             
             // Handle specific error types
             if (error instanceof ChatProviderUnavailableError) {
@@ -132,105 +132,169 @@ export class GitHubCopilotIntegration implements IChatProvider {
     }
 
     /**
-     * Sends prompt through VS Code command API
+     * Sends prompt directly to chat interface using modern VS Code Chat API
      * @param prompt The prompt to send
      */
-    private async sendThroughCommand(prompt: string): Promise<void> {
+    private async sendDirectlyToChat(prompt: string): Promise<void> {
         try {
-            console.log('Attempting to send prompt through GitHub Copilot Chat commands...');
+            console.log('Attempting to send prompt directly to GitHub Copilot Chat...');
             
-            // Method 1: Try to open Copilot Chat view using the correct command
+            // Method 1: Try to open chat with query directly (modern approach)
             try {
-                await vscode.commands.executeCommand('workbench.panel.chat.view.copilot.focus');
-                console.log('Successfully focused Copilot Chat panel');
-                
-                // Wait a brief moment for the chat to load
-                await new Promise(resolve => setTimeout(resolve, 500));
-                
-                // Copy the prompt to clipboard so user can paste it
-                await vscode.env.clipboard.writeText(prompt);
-                console.log('Prompt copied to clipboard');
-                
-                // Show information to user about pasting the prompt
-                vscode.window.showInformationMessage(
-                    'Prompt copied to clipboard. Paste it into GitHub Copilot Chat (Ctrl+V or Cmd+V).',
-                    'OK'
-                );
-                
-                return; // Success!
-                
-            } catch (chatFocusError) {
-                console.warn('Failed to focus Copilot Chat panel:', chatFocusError);
-            }
-            
-            // Method 2: Try alternative chat commands
-            try {
+                console.log('Trying workbench.action.chat.open with query...');
                 await vscode.commands.executeCommand('workbench.action.chat.open', { 
                     query: prompt 
                 });
-                console.log('Successfully opened chat with query');
+                console.log('Successfully opened chat with query using workbench.action.chat.open');
                 return; // Success!
                 
             } catch (chatOpenError) {
                 console.warn('Failed to open chat with query:', chatOpenError);
             }
-            
-            // Method 3: Try to focus any available chat view
+
+            // Method 2: Try the new chat submission API (VS Code 1.95+)
             try {
-                await vscode.commands.executeCommand('workbench.view.chat.focus');
-                console.log('Successfully focused general chat view');
+                console.log('Trying workbench.action.chat.submit...');
+                // First open the chat view
+                await vscode.commands.executeCommand('workbench.panel.chat.view.copilot.focus');
                 
-                // Copy prompt to clipboard
-                await vscode.env.clipboard.writeText(prompt);
+                // Wait a moment for the chat to load
+                await new Promise(resolve => setTimeout(resolve, 300));
                 
-                vscode.window.showInformationMessage(
-                    'Prompt copied to clipboard. Paste it into the Chat view.',
-                    'OK'
-                );
-                
+                // Submit the prompt directly
+                await vscode.commands.executeCommand('workbench.action.chat.submit', {
+                    text: prompt
+                });
+                console.log('Successfully submitted prompt using workbench.action.chat.submit');
                 return; // Success!
                 
-            } catch (generalChatError) {
-                console.warn('Failed to focus general chat view:', generalChatError);
+            } catch (submitError) {
+                console.warn('Failed to submit chat directly:', submitError);
+            }
+
+            // Method 3: Try to use the chat input API
+            try {
+                console.log('Trying workbench.action.chat.sendToNewChat...');
+                await vscode.commands.executeCommand('workbench.action.chat.sendToNewChat', {
+                    message: prompt
+                });
+                console.log('Successfully sent to new chat using workbench.action.chat.sendToNewChat');
+                return; // Success!
+                
+            } catch (newChatError) {
+                console.warn('Failed to send to new chat:', newChatError);
+            }
+
+            // Method 4: Try focusing chat and inserting text programmatically
+            try {
+                console.log('Trying to focus chat and insert text...');
+                
+                // Focus the chat panel
+                await vscode.commands.executeCommand('workbench.panel.chat.view.copilot.focus');
+                
+                // Wait for the chat to load
+                await new Promise(resolve => setTimeout(resolve, 500));
+                
+                // Try to insert text into the active input
+                await vscode.commands.executeCommand('type', { text: prompt });
+                
+                // Wait a moment
+                await new Promise(resolve => setTimeout(resolve, 200));
+                
+                // Submit by pressing Enter
+                await vscode.commands.executeCommand('workbench.action.acceptSelectedSuggestion');
+                
+                console.log('Successfully inserted and submitted text to chat');
+                return; // Success!
+                
+            } catch (insertError) {
+                console.warn('Failed to insert text into chat:', insertError);
+            }
+
+            // Method 5: Try alternative chat commands
+            try {
+                console.log('Trying alternative chat focus commands...');
+                
+                // Try general chat focus
+                await vscode.commands.executeCommand('workbench.view.chat.focus');
+                
+                // Wait for focus
+                await new Promise(resolve => setTimeout(resolve, 300));
+                
+                // Type the text
+                await vscode.commands.executeCommand('type', { text: prompt });
+                
+                // Wait and submit
+                await new Promise(resolve => setTimeout(resolve, 200));
+                await vscode.commands.executeCommand('workbench.action.chat.acceptInput');
+                
+                console.log('Successfully used alternative chat commands');
+                return; // Success!
+                
+            } catch (altError) {
+                console.warn('Failed to use alternative chat commands:', altError);
+            }
+
+            // Method 6: Last resort - try to simulate user input
+            try {
+                console.log('Trying to simulate user input...');
+                
+                // Focus any available chat view
+                const chatCommands = [
+                    'workbench.panel.chat.view.copilot.focus',
+                    'workbench.view.chat.focus',
+                    'workbench.action.chat.open'
+                ];
+                
+                let chatFocused = false;
+                for (const command of chatCommands) {
+                    try {
+                        await vscode.commands.executeCommand(command);
+                        chatFocused = true;
+                        console.log(`Successfully focused chat with command: ${command}`);
+                        break;
+                    } catch (focusError) {
+                        console.warn(`Failed to focus chat with ${command}:`, focusError);
+                    }
+                }
+                
+                if (chatFocused) {
+                    // Wait for the chat to be ready
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                    
+                    // Type the prompt
+                    await vscode.commands.executeCommand('type', { text: prompt });
+                    
+                    // Wait a moment
+                    await new Promise(resolve => setTimeout(resolve, 300));
+                    
+                    // Try different ways to submit
+                    const submitCommands = [
+                        'workbench.action.chat.acceptInput',
+                        'workbench.action.acceptSelectedSuggestion',
+                        'editor.action.insertLineAfter'  // This sends Enter
+                    ];
+                    
+                    for (const submitCommand of submitCommands) {
+                        try {
+                            await vscode.commands.executeCommand(submitCommand);
+                            console.log(`Successfully submitted with command: ${submitCommand}`);
+                            return; // Success!
+                        } catch (submitError) {
+                            console.warn(`Failed to submit with ${submitCommand}:`, submitError);
+                        }
+                    }
+                }
+                
+            } catch (simulateError) {
+                console.warn('Failed to simulate user input:', simulateError);
             }
             
-            // Method 4: Last resort - just copy to clipboard and inform user
-            await vscode.env.clipboard.writeText(prompt);
-            
-            const action = await vscode.window.showInformationMessage(
-                'Could not automatically open GitHub Copilot Chat. The prompt has been copied to your clipboard.',
-                'Open Chat Manually',
-                'Dismiss'
-            );
-            
-            if (action === 'Open Chat Manually') {
-                // Try to open the command palette to help user find chat commands
-                await vscode.commands.executeCommand('workbench.action.showCommands');
-                vscode.window.showInformationMessage('Search for "Copilot" or "Chat" commands in the Command Palette.');
-            }
+            // If all methods fail, throw an error
+            throw new Error('All methods to send prompt directly to chat failed. The prompt could not be inserted and submitted automatically.');
             
         } catch (error) {
-            console.error('Failed to send through command API:', error);
-            
-            // Don't show dialog in test environment
-            const isTestEnvironment = process.env.NODE_ENV === 'test' || 
-                                     process.env.VSCODE_PID !== undefined;
-            
-            if (!isTestEnvironment) {
-                // Final fallback: Show an information message with the prompt
-                const action = await vscode.window.showErrorMessage(
-                    'Failed to send prompt to GitHub Copilot Chat. You can copy the prompt and paste it manually.',
-                    'Copy to Clipboard',
-                    'Dismiss'
-                );
-                
-                if (action === 'Copy to Clipboard') {
-                    await vscode.env.clipboard.writeText(prompt);
-                    vscode.window.showInformationMessage('Prompt copied to clipboard. Paste it into GitHub Copilot Chat.');
-                }
-            }
-            
-            // Re-throw the error so the calling code knows the command failed
+            console.error('Failed to send prompt directly to chat:', error);
             throw new Error(`Failed to send prompt to GitHub Copilot Chat: ${error instanceof Error ? error.message : String(error)}`);
         }
     }

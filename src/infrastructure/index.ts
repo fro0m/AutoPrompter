@@ -31,3 +31,5 @@ export {
     ChatProviderUnavailableError,
     UnsupportedTargetError
 } from './chat-interfaces';
+
+export * from './logger';

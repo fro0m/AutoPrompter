@@ -9,6 +9,7 @@ import { IConfigurationService } from './interfaces';
  * 2. Minimal interval configuration
  * 3. Automation enable/disable controls
  * 4. Configuration validation and persistence
+ * 5. Workspace-specific configuration operations
  */
 export class ConfigurationManagementUseCase {
     constructor(
@@ -67,6 +68,55 @@ export class ConfigurationManagementUseCase {
      */
     async setAutomationEnabled(enabled: boolean): Promise<void> {
         await this.configService.setAutomationEnabled(enabled);
+    }
+
+    /**
+     * Gets workspace configuration information
+     * @returns Workspace configuration details
+     */
+    async getWorkspaceConfigurationInfo(): Promise<{
+        hasWorkspaceSettings: boolean;
+        workspaceName: string | undefined;
+        settingsLocation: string;
+        configuredSettings: string[];
+    }> {
+        // Check if the config service has workspace-specific methods
+        if ('getWorkspaceConfigurationInfo' in this.configService && 
+            typeof (this.configService as any).getWorkspaceConfigurationInfo === 'function') {
+            return await (this.configService as any).getWorkspaceConfigurationInfo();
+        }
+        
+        // Fallback for services that don't support workspace operations
+        return {
+            hasWorkspaceSettings: false,
+            workspaceName: undefined,
+            settingsLocation: 'Global settings',
+            configuredSettings: []
+        };
+    }
+
+    /**
+     * Copies global settings to workspace
+     */
+    async copyGlobalToWorkspace(): Promise<void> {
+        if ('copyGlobalToWorkspace' in this.configService && 
+            typeof (this.configService as any).copyGlobalToWorkspace === 'function') {
+            await (this.configService as any).copyGlobalToWorkspace();
+        } else {
+            throw new Error('Workspace operations are not supported by the current configuration service');
+        }
+    }
+
+    /**
+     * Resets workspace settings to defaults
+     */
+    async resetWorkspaceToDefaults(): Promise<void> {
+        if ('resetToDefaults' in this.configService && 
+            typeof (this.configService as any).resetToDefaults === 'function') {
+            await (this.configService as any).resetToDefaults();
+        } else {
+            throw new Error('Workspace operations are not supported by the current configuration service');
+        }
     }
 
     /**

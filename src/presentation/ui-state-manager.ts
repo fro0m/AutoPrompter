@@ -1,31 +1,26 @@
 import { IUIStateManager, UIState } from './interfaces';
 
 /**
- * UIStateManager
- * 
- * Manages the UI state for the AutoPrompter sidebar
+ * Manages UI state for the AutoPrompter sidebar
  */
 export class UIStateManager implements IUIStateManager {
-    private state: UIState;
+    private _currentState: UIState;
 
     constructor() {
-        this.state = this.createDefaultState();
+        this._currentState = this.getDefaultState();
     }
 
-    /**
-     * Gets the current UI state
-     */
-    public getState(): UIState {
-        return { ...this.state };
+    public get currentState(): Readonly<UIState> {
+        return Object.freeze({ ...this._currentState });
     }
 
     /**
      * Updates the UI state
      */
-    public updateState(partialState: Partial<UIState>): void {
-        this.state = {
-            ...this.state,
-            ...partialState
+    public updateState(updates: Partial<UIState>): void {
+        this._currentState = {
+            ...this._currentState,
+            ...updates
         };
     }
 
@@ -33,21 +28,19 @@ export class UIStateManager implements IUIStateManager {
      * Resets the UI state to defaults
      */
     public reset(): void {
-        this.state = this.createDefaultState();
+        this._currentState = this.getDefaultState();
     }
 
-    /**
-     * Creates the default UI state
-     */
-    private createDefaultState(): UIState {
+    private getDefaultState(): UIState {
         return {
             isAutomationEnabled: false,
-            currentPromptText: 'Please review the current code and provide suggestions for improvement.',
-            scheduleInterval: 300000, // 5 minutes default
-            lastExecutionTime: null,
+            scheduleInterval: 60000, // 1 minute
+            currentPromptText: '',
+            isConnected: false,
             executionCount: 0,
-            errorMessage: null,
-            isConnected: false
+            lastExecutionTime: undefined,
+            errorMessage: undefined,
+            isExecuting: false
         };
     }
 }

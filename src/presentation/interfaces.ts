@@ -12,6 +12,9 @@ import { AutoPrompterConfiguration } from '../domain';
  * Interface for the sidebar provider
  */
 export interface ISidebarProvider extends vscode.WebviewViewProvider {
+    readonly viewType: string;
+    resolveWebviewView(webviewView: vscode.WebviewView): void;
+
     /**
      * Updates the configuration displayed in the sidebar
      * @param config The new configuration
@@ -48,20 +51,8 @@ export interface IWebviewManager {
  * Interface for UI state management
  */
 export interface IUIStateManager {
-    /**
-     * Gets the current UI state
-     */
-    getState(): UIState;
-
-    /**
-     * Updates the UI state
-     * @param updates Partial state updates
-     */
+    readonly currentState: Readonly<UIState>;
     updateState(updates: Partial<UIState>): void;
-
-    /**
-     * Resets the UI state to defaults
-     */
     reset(): void;
 }
 
@@ -69,53 +60,62 @@ export interface IUIStateManager {
  * UI State structure
  */
 export interface UIState {
-    isAutomationEnabled: boolean;
-    scheduleInterval: number; // milliseconds
-    currentPromptText: string;
-    isConnected: boolean;
-    errorMessage: string | null;
-    lastExecutionTime: Date | null;
-    executionCount: number;
+    readonly isAutomationEnabled: boolean;
+    readonly scheduleInterval: number; // milliseconds
+    readonly currentPromptText: string;
+    readonly isConnected: boolean;
+    readonly executionCount: number;
+    readonly lastExecutionTime?: Date;
+    readonly errorMessage?: string;
+    readonly isExecuting?: boolean;
+    readonly workspaceInfo?: WorkspaceInfo;
 }
 
 /**
- * WebView Message Types
+ * Workspace configuration information
  */
-export enum WebViewMessageType {
-    // Configuration
-    READY = 'READY',
-    GET_CONFIG = 'GET_CONFIG',
-    UPDATE_CONFIG = 'UPDATE_CONFIG',
-    
-    // Automation Control
-    TOGGLE_AUTOMATION = 'TOGGLE_AUTOMATION',
-    UPDATE_INTERVAL = 'UPDATE_INTERVAL',
-    EXECUTE_NOW = 'EXECUTE_NOW',
-    
-    // Prompt Management
-    SET_PROMPT_TEXT = 'SET_PROMPT_TEXT',
-    
-    // Status
-    GET_STATUS = 'GET_STATUS',
-    SHOW_STATUS = 'SHOW_STATUS',
-    UPDATE_STATUS = 'UPDATE_STATUS'
+export interface WorkspaceInfo {
+    readonly hasWorkspaceSettings: boolean;
+    readonly workspaceName: string;
+    readonly settingsLocation: string;
+    readonly configuredSettings: string[];
+    readonly isProjectSpecific: boolean;
 }
+
+/**
+ * WebView message types using const assertion for better type safety
+ */
+export const WebViewMessageType = {
+    READY: 'READY',
+    GET_CONFIG: 'GET_CONFIG',
+    UPDATE_CONFIG: 'UPDATE_CONFIG',
+    TOGGLE_AUTOMATION: 'TOGGLE_AUTOMATION',
+    UPDATE_INTERVAL: 'UPDATE_INTERVAL',
+    UPDATE_PROMPT_TEXT: 'UPDATE_PROMPT_TEXT',
+    EXECUTE_NOW: 'EXECUTE_NOW',
+    RESET_STATS: 'RESET_STATS',
+    GET_WORKSPACE_INFO: 'GET_WORKSPACE_INFO',
+    COPY_GLOBAL_TO_WORKSPACE: 'COPY_GLOBAL_TO_WORKSPACE',
+    RESET_WORKSPACE_SETTINGS: 'RESET_WORKSPACE_SETTINGS'
+} as const;
+
+export type WebViewMessageTypeValues = typeof WebViewMessageType[keyof typeof WebViewMessageType];
 
 /**
  * WebView Message structure
  */
 export interface WebViewMessage {
-    type: WebViewMessageType;
-    payload?: any;
-    requestId?: string;
+    readonly type: WebViewMessageTypeValues;
+    readonly payload?: Record<string, unknown>;
+    readonly requestId?: string;
 }
 
 /**
  * WebView Response structure
  */
 export interface WebViewResponse {
-    success: boolean;
-    data?: any;
-    error?: string;
-    requestId?: string;
+    readonly success: boolean;
+    readonly data?: Record<string, unknown>;
+    readonly error?: string;
+    readonly requestId?: string;
 }

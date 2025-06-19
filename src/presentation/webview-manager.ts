@@ -329,15 +329,57 @@ section h2 {
                                 <!-- Error messages will appear here -->
                             </div>
                         </section>
+
+                        <!-- Workspace Configuration -->
+                        <section class="workspace-section">
+                            <h2>Workspace Settings</h2>
+                            <div class="workspace-info">
+                                <div class="status-item">
+                                    <span class="status-label" title="The name of the current workspace/project">Project Name:</span>
+                                    <span id="workspaceName" class="status-value">Loading...</span>
+                                </div>
+                                <div class="status-item">
+                                    <span class="status-label" title="Where AutoPrompter settings are stored for this project">Settings Location:</span>
+                                    <span id="settingsLocation" class="status-value">Loading...</span>
+                                </div>
+                                <div class="status-item">
+                                    <span class="status-label" title="Whether this project has its own AutoPrompter settings (Yes) or uses global settings (No)">Has Project Settings:</span>
+                                    <span id="isProjectSpecific" class="status-value">Loading...</span>
+                                </div>
+                            </div>
+                            <div class="button-group">
+                                <button id="copyGlobalBtn" class="btn btn-secondary" title="Copy your global AutoPrompter settings to this workspace">
+                                    Copy Global Settings
+                                </button>
+                                <button id="resetWorkspaceBtn" class="btn btn-secondary" title="Reset this workspace's settings to defaults">
+                                    Reset to Defaults
+                                </button>
+                            </div>
+                        </section>
                     </main>
                 </div>
 
                 <script>
 // AutoPrompter Sidebar Script
-(function () {
+console.log('AutoPrompter: Script loaded, waiting for DOM...');
+
+function initializeWebview() {
+  console.log('AutoPrompter: Webview script starting...');
+  
+  try {
+    const vscode = acquireVsCodeApi();
+    console.log('AutoPrompter: VS Code API acquired successfully');
+  } catch (error) {
+    console.error('AutoPrompter: Failed to acquire VS Code API:', error);
+    // Try to show error in DOM
+    document.body.innerHTML = '<div style="color: red; padding: 20px;">Failed to initialize AutoPrompter: VS Code API not available</div>';
+    return;
+  }
+  
   const vscode = acquireVsCodeApi();
 
   // Get UI elements
+  console.log('AutoPrompter: Getting UI elements...');
   const automationToggle = document.getElementById('automationToggle');
   const intervalSelect = document.getElementById('intervalSelect');
   const executeNowBtn = document.getElementById('executeNowBtn');
@@ -348,6 +390,34 @@ section h2 {
   const lastExecutionSpan = document.getElementById('lastExecution');
   const executionCountSpan = document.getElementById('executionCount');
   const errorMessage = document.getElementById('errorMessage');
+  const copyGlobalBtn = document.getElementById('copyGlobalBtn');
+  const resetWorkspaceBtn = document.getElementById('resetWorkspaceBtn');
+  const workspaceNameSpan = document.getElementById('workspaceName');
+  const settingsLocationSpan = document.getElementById('settingsLocation');
+  const isProjectSpecificSpan = document.getElementById('isProjectSpecific');
+
+  console.log('AutoPrompter: UI elements found:', {
+    automationToggle: !!automationToggle,
+    executeNowBtn: !!executeNowBtn,
+    promptText: !!promptText,
+    workspaceNameSpan: !!workspaceNameSpan,
+    settingsLocationSpan: !!settingsLocationSpan,
+    isProjectSpecificSpan: !!isProjectSpecificSpan
+  });
+
+  // Show immediate feedback that webview is loading
+  if (workspaceNameSpan) {
+    workspaceNameSpan.textContent = 'Initializing...';
+    workspaceNameSpan.style.color = 'var(--vscode-terminal-ansiBlue, #0080ff)';
+  }
+  if (settingsLocationSpan) {
+    settingsLocationSpan.textContent = 'Initializing...';
+    settingsLocationSpan.style.color = 'var(--vscode-terminal-ansiBlue, #0080ff)';
+  }
+  if (isProjectSpecificSpan) {
+    isProjectSpecificSpan.textContent = 'Initializing...';
+    isProjectSpecificSpan.style.color = 'var(--vscode-terminal-ansiBlue, #0080ff)';
+  }
 
   // State management
   let currentState = {
@@ -418,7 +488,7 @@ section h2 {
       const text = promptText.value.trim();
       if (text) {
         vscode.postMessage({ 
-          type: 'SET_PROMPT_TEXT', 
+          type: 'UPDATE_PROMPT_TEXT', 
           payload: { promptText: text }
         });
         showMessage('Prompt text saved successfully', false);
@@ -435,59 +505,109 @@ section h2 {
       if (text && text !== currentState.promptText) {
         currentState.promptText = text;
         vscode.postMessage({ 
-          type: 'SET_PROMPT_TEXT', 
+          type: 'UPDATE_PROMPT_TEXT', 
           payload: { promptText: text }
         });
       }
     });
   }
 
-  // Message handling from extension
+  // Copy Global Settings button
+  if (copyGlobalBtn) {
+    copyGlobalBtn.addEventListener('click', function () {
+      copyGlobalBtn.disabled = true;
+      copyGlobalBtn.textContent = 'Copying...';
+      
+      vscode.postMessage({ 
+        type: 'COPY_GLOBAL_TO_WORKSPACE',
+        payload: {}
+      });
+
+      // Re-enable button after 3 seconds
+      setTimeout(() => {
+        copyGlobalBtn.disabled = false;
+        copyGlobalBtn.textContent = 'Copy Global Settings';
+      }, 3000);
+    });
+  }
+
+  // Reset Workspace Settings button
+  if (resetWorkspaceBtn) {
+    resetWorkspaceBtn.addEventListener('click', function () {
+      if (confirm('Are you sure you want to reset this workspace\'s AutoPrompter settings to defaults? This cannot be undone.')) {
+        resetWorkspaceBtn.disabled = true;
+        resetWorkspaceBtn.textContent = 'Resetting...';
+        
+        vscode.postMessage({ 
+          type: 'RESET_WORKSPACE_SETTINGS',
+          payload: {}
+        });
+
+        // Re-enable button after 3 seconds
+        setTimeout(() => {
+          resetWorkspaceBtn.disabled = false;
+          resetWorkspaceBtn.textContent = 'Reset to Defaults';
+        }, 3000);
+      }
+    });
+  }
+
+  // Message listener
   window.addEventListener('message', event => {
     const message = event.data;
+    console.log('AutoPrompter: Received message from extension:', message);
     
-    console.log('Received message from extension:', message);
-    
-    // Handle responses with request IDs (for tracking specific requests)
-    if (message.requestId) {
-      console.log('Received response for request: ' + message.requestId, message);
-      
-      // Handle toggle automation responses
-      if (message.requestId.startsWith('toggle_')) {
-        if (message.success) {
-          console.log('Automation toggle successful');
-          // Optionally show success feedback
-        } else {
-          console.error('Automation toggle failed:', message.error);
-          showMessage('Toggle failed: ' + message.error, true);
+    try {
+      // Handle response messages (messages with requestId)
+      if (message.requestId) {
+        console.log('AutoPrompter: Processing response message with requestId:', message.requestId);
+        
+        if (message.type === 'TOGGLE_AUTOMATION_RESPONSE') {
+          const requestId = message.requestId;
+          console.log('AutoPrompter: Received toggle response for request:', requestId);
           
-          // Revert the toggle state if the operation failed
-          if (automationToggle) {
-            const currentEnabled = currentState.isAutomationEnabled;
-            automationToggle.checked = currentEnabled;
+          if (message.success) {
+            console.log('AutoPrompter: Toggle successful, updating UI state');
+            const currentEnabled = message.data?.enabled ?? false;
             updateAutomationState(currentEnabled);
+          } else {
+            console.error('AutoPrompter: Toggle failed:', message.error);
+            showMessage('Failed to toggle automation: ' + (message.error || 'Unknown error'), true);
+            
+            // Revert toggle state on error
+            if (automationToggle) {
+              automationToggle.checked = !automationToggle.checked;
+              updateAutomationState(automationToggle.checked);
+            }
           }
         }
+        return; // Exit early for request responses
       }
-      return; // Exit early for request responses
-    }
-    
-    // Handle regular messages (non-response messages)
-    switch (message.type) {
-      case 'UPDATE_CONFIG':
-        handleConfigUpdate(message.payload);
-        break;
-        
-      case 'SHOW_STATUS':
-        showMessage(message.payload.message, message.payload.isError);
-        break;
-        
-      case 'statusUpdate':
-        updateStatus(message.text, message.active);
-        break;
-        
-      default:
-        console.log('Unknown message type:', message.type);
+      
+      // Handle regular messages (non-response messages)
+      console.log('AutoPrompter: Processing regular message type:', message.type);
+      switch (message.type) {
+        case 'UPDATE_CONFIG':
+          console.log('AutoPrompter: Handling UPDATE_CONFIG message');
+          handleConfigUpdate(message.payload);
+          break;
+          
+        case 'SHOW_STATUS':
+          console.log('AutoPrompter: Handling SHOW_STATUS message');
+          showMessage(message.payload.message, message.payload.isError);
+          break;
+          
+        case 'statusUpdate':
+          console.log('AutoPrompter: Handling statusUpdate message');
+          updateStatus(message.text, message.active);
+          break;
+          
+        default:
+          console.log('AutoPrompter: Unknown message type:', message.type);
+      }
+    } catch (error) {
+      console.error('AutoPrompter: Error processing message:', error, 'Message:', message);
+      showMessage('Error processing extension message: ' + error.message, true);
     }
   });
 
@@ -507,6 +627,8 @@ section h2 {
   }
 
   function handleConfigUpdate(payload) {
+    console.log('Handling config update with payload:', payload);
+    
     if (payload.config) {
       const config = payload.config;
       
@@ -521,6 +643,11 @@ section h2 {
       currentState.promptText = payload.promptText;
       if (promptText) {
         promptText.value = payload.promptText;
+      }
+      
+      // Enable execute button if we have prompt text
+      if (executeNowBtn && payload.promptText.trim()) {
+        executeNowBtn.disabled = false;
       }
     }
     
@@ -548,6 +675,45 @@ section h2 {
           lastExecutionSpan.textContent = date.toLocaleTimeString();
         }
       }
+      
+      // Enable execute button if we have prompt text and not currently executing
+      if (executeNowBtn && state.currentPromptText && state.currentPromptText.trim() && !state.isExecuting) {
+        executeNowBtn.disabled = false;
+      }
+    }
+
+    // Update workspace information
+    if (payload.workspaceInfo) {
+      const workspaceInfo = payload.workspaceInfo;
+      console.log('Updating workspace info:', workspaceInfo);
+      
+      if (workspaceNameSpan) {
+        workspaceNameSpan.textContent = workspaceInfo.workspaceName || 'Untitled Workspace';
+        console.log('Updated workspace name to:', workspaceNameSpan.textContent);
+      }
+      
+      if (settingsLocationSpan) {
+        const location = workspaceInfo.settingsLocation || 'Global Settings';
+        settingsLocationSpan.textContent = location;
+        settingsLocationSpan.title = workspaceInfo.isProjectSpecific 
+          ? 'Settings are stored in .vscode/settings.json in this project' 
+          : 'Using global VS Code settings (no project-specific settings)';
+        console.log('Updated settings location to:', location);
+      }
+      
+      if (isProjectSpecificSpan) {
+        const hasProjectSettings = workspaceInfo.isProjectSpecific;
+        isProjectSpecificSpan.textContent = hasProjectSettings ? 'Yes' : 'No';
+        isProjectSpecificSpan.style.color = hasProjectSettings 
+          ? 'var(--vscode-terminal-ansiGreen, #00ff00)' 
+          : 'var(--vscode-terminal-ansiYellow, #ffff00)';
+        isProjectSpecificSpan.title = hasProjectSettings
+          ? 'This project has its own AutoPrompter settings'
+          : 'This project uses global AutoPrompter settings';
+        console.log('Updated project-specific to:', hasProjectSettings ? 'Yes' : 'No');
+      }
+    } else {
+      console.log('No workspace info in payload');
     }
   }
 
@@ -588,10 +754,173 @@ section h2 {
     }
   }
 
-  // Initialize by requesting current configuration
-  vscode.postMessage({ type: 'READY', payload: {} });
+  // Handle workspace info loading errors
+  function handleWorkspaceInfoError(error) {
+    console.error('Failed to load workspace info:', error);
+    
+    if (workspaceNameSpan) {
+      workspaceNameSpan.textContent = 'Error loading';
+      workspaceNameSpan.style.color = 'var(--vscode-errorForeground, #f48771)';
+      workspaceNameSpan.title = 'Failed to load workspace information: ' + error;
+    }
+    
+    if (settingsLocationSpan) {
+      settingsLocationSpan.textContent = 'Error loading';
+      settingsLocationSpan.style.color = 'var(--vscode-errorForeground, #f48771)';
+      settingsLocationSpan.title = 'Failed to load settings location: ' + error;
+    }
+    
+    if (isProjectSpecificSpan) {
+      isProjectSpecificSpan.textContent = 'Error loading';
+      isProjectSpecificSpan.style.color = 'var(--vscode-errorForeground, #f48771)';
+      isProjectSpecificSpan.title = 'Failed to load project settings info: ' + error;
+    }
+  }
 
-})();
+  // Initialize execute button state based on current prompt text
+  function updateExecuteButtonState() {
+    if (executeNowBtn && promptText) {
+      const hasText = promptText.value && promptText.value.trim().length > 0;
+      executeNowBtn.disabled = !hasText;
+      executeNowBtn.title = hasText 
+        ? 'Execute the current prompt immediately' 
+        : 'Enter some prompt text first';
+      console.log('Execute button state updated:', { disabled: executeNowBtn.disabled, hasText });
+    } else {
+      console.log('Execute button or prompt text element not found');
+    }
+  }
+
+  // Debug function to check DOM elements
+  function checkDOMElements() {
+    console.log('DOM Elements check:', {
+      workspaceNameSpan: !!workspaceNameSpan,
+      settingsLocationSpan: !!settingsLocationSpan,
+      isProjectSpecificSpan: !!isProjectSpecificSpan,
+      executeNowBtn: !!executeNowBtn,
+      promptText: !!promptText,
+      automationToggle: !!automationToggle
+    });
+  }
+
+  // Handle workspace loading timeout
+  function handleWorkspaceLoadingTimeout() {
+    if (workspaceNameSpan && workspaceNameSpan.textContent === 'Loading...') {
+      console.log('Workspace info loading timeout - setting fallback values');
+      workspaceNameSpan.textContent = 'Current Project';
+      workspaceNameSpan.title = 'Workspace information could not be loaded';
+    }
+    
+    if (settingsLocationSpan && settingsLocationSpan.textContent === 'Loading...') {
+      settingsLocationSpan.textContent = 'Global Settings';
+      settingsLocationSpan.title = 'Using global VS Code settings (workspace info unavailable)';
+    }
+    
+    if (isProjectSpecificSpan && isProjectSpecificSpan.textContent === 'Loading...') {
+      isProjectSpecificSpan.textContent = 'Unknown';
+      isProjectSpecificSpan.style.color = 'var(--vscode-terminal-ansiYellow, #ffff00)';
+      isProjectSpecificSpan.title = 'Could not determine if project has specific settings';
+    }
+  }
+
+  // Ensure execute button works
+  function ensureExecuteButtonWorks() {
+    if (executeNowBtn) {
+      // Enable execute button if we have prompt text
+      if (promptText && promptText.value && promptText.value.trim()) {
+        executeNowBtn.disabled = false;
+        executeNowBtn.title = 'Execute the current prompt immediately';
+        console.log('Execute button enabled - has prompt text');
+      } else {
+        // If no prompt text, set a default and enable
+        if (promptText && !promptText.value.trim()) {
+          promptText.value = 'Please review the current code and provide suggestions for improvement.';
+          executeNowBtn.disabled = false;
+          executeNowBtn.title = 'Execute the current prompt immediately';
+          console.log('Execute button enabled - default prompt text set');
+        }
+      }
+    }
+  }
+
+  // Update execute button when prompt text changes
+  if (promptText) {
+    promptText.addEventListener('input', updateExecuteButtonState);
+  }
+
+  // Check DOM elements on initialization
+  checkDOMElements();
+
+  // Initialize by requesting current configuration with retry mechanism
+  let readyRetries = 0;
+  const maxReadyRetries = 3;
+  
+  function sendReadyMessage() {
+    readyRetries++;
+    console.log('AutoPrompter: Sending READY message to extension (attempt ' + readyRetries + ')');
+    
+    try {
+      vscode.postMessage({ 
+        type: 'READY', 
+        payload: {},
+        timestamp: Date.now(),
+        attempt: readyRetries
+      });
+      
+      console.log('AutoPrompter: READY message sent successfully');
+    } catch (error) {
+      console.error('AutoPrompter: Failed to send READY message:', error);
+      showMessage('Failed to communicate with extension: ' + error.message, true);
+    }
+  }
+  
+  // Send initial READY message
+  sendReadyMessage();
+  
+  // Set up retry mechanism for READY message if no response received
+  const readyTimeout = setTimeout(() => {
+    if (workspaceNameSpan && workspaceNameSpan.textContent === 'Initializing...') {
+      console.log('AutoPrompter: No response to READY message, retrying...');
+      if (readyRetries < maxReadyRetries) {
+        sendReadyMessage();
+      } else {
+        console.error('AutoPrompter: Max retries reached, falling back to timeout handling');
+        handleWorkspaceLoadingTimeout();
+        ensureExecuteButtonWorks();
+      }
+    } else {
+      console.log('AutoPrompter: READY message appears to have been processed successfully');
+    }
+  }, 2000);
+
+  // Set a timeout to handle cases where workspace info fails to load
+  setTimeout(() => {
+    console.log('AutoPrompter: Final timeout check - handling potential loading issues');
+    
+    // Clear the retry timeout if still active
+    clearTimeout(readyTimeout);
+    
+    // Handle any remaining loading states
+    handleWorkspaceLoadingTimeout();
+    ensureExecuteButtonWorks();
+    
+    // Show final status
+    if (workspaceNameSpan && workspaceNameSpan.textContent.includes('Loading')) {
+      console.log('AutoPrompter: Initialization completed with fallback values');
+      showMessage('AutoPrompter loaded with default settings', false);
+    } else {
+      console.log('AutoPrompter: Initialization completed successfully');
+    }
+  }, 5000); // 5 second final timeout
+}
+
+// Initialize webview when the DOM is fully loaded
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initializeWebview);
+} else {
+  // DOM is already loaded
+  initializeWebview();
+}
                 </script>
             </body>
             </html>
