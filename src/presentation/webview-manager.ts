@@ -364,10 +364,19 @@ section h2 {
   if (automationToggle) {
     automationToggle.addEventListener('change', function () {
       const enabled = automationToggle.checked;
+      
+      // Generate a unique request ID for tracking
+      const requestId = 'toggle_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+      
+      // Update state optimistically for immediate UI feedback
       updateAutomationState(enabled);
+      
+      console.log('Toggling automation to: ' + enabled + ' (requestId: ' + requestId + ')');
+      
       vscode.postMessage({ 
         type: 'TOGGLE_AUTOMATION', 
-        payload: { enabled: enabled }
+        payload: { enabled: enabled },
+        requestId: requestId
       });
     });
   }
@@ -437,6 +446,33 @@ section h2 {
   window.addEventListener('message', event => {
     const message = event.data;
     
+    console.log('Received message from extension:', message);
+    
+    // Handle responses with request IDs (for tracking specific requests)
+    if (message.requestId) {
+      console.log('Received response for request: ' + message.requestId, message);
+      
+      // Handle toggle automation responses
+      if (message.requestId.startsWith('toggle_')) {
+        if (message.success) {
+          console.log('Automation toggle successful');
+          // Optionally show success feedback
+        } else {
+          console.error('Automation toggle failed:', message.error);
+          showMessage('Toggle failed: ' + message.error, true);
+          
+          // Revert the toggle state if the operation failed
+          if (automationToggle) {
+            const currentEnabled = currentState.isAutomationEnabled;
+            automationToggle.checked = currentEnabled;
+            updateAutomationState(currentEnabled);
+          }
+        }
+      }
+      return; // Exit early for request responses
+    }
+    
+    // Handle regular messages (non-response messages)
     switch (message.type) {
       case 'UPDATE_CONFIG':
         handleConfigUpdate(message.payload);

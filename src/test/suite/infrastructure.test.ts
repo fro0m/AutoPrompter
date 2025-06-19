@@ -1,16 +1,22 @@
 import * as assert from 'assert';
 import * as vscode from 'vscode';
+import * as sinon from 'sinon';
 import { 
     WorkspaceConfigurationRepository,
-    AISessionMonitoringService,
-    PromptSchedulingEngine
+    VSCodeChatIntegration,
+    PromptSchedulingEngine,
+    AISessionMonitoringService
 } from '../../infrastructure';
 import { ContextAwarePromptGenerator } from '../../infrastructure/context-aware-prompt-generator';
-import {
+import { 
     AutoPrompterConfiguration,
-    ScheduleConfiguration
+    PromptScheduler,
+    AISessionMonitor,
+    TimeInterval
 } from '../../domain';
-import { TimeInterval, AITarget } from '../../domain/types';
+import { AITarget } from '../../domain/types';
+import { AutoPrompterSidebarProvider } from '../../presentation/autoprompter-sidebar-provider';
+import { WebViewMessageType } from '../../presentation/interfaces';
 
 // Mock VS Code API for testing
 const mockVSCode = {
@@ -274,6 +280,109 @@ suite('Infrastructure Layer Tests', () => {
         test('should dispose properly', () => {
             // Should not throw
             engine.dispose();
+        });
+    });
+
+    suite('AutoPrompterSidebarProvider', () => {
+        test('should handle toggle automation message correctly', async () => {
+            const mockConfigUseCase = {
+                setAutomationEnabled: sinon.stub().resolves(),
+                isAutomationEnabled: sinon.stub().resolves(false),
+                getConfigurationSummary: sinon.stub().resolves({
+                    automationEnabled: false,
+                    promptText: 'Test prompt',
+                    minimalInterval: '1 minute',
+                    configurationValid: true
+                }),
+                getPromptText: sinon.stub().resolves('Test prompt')
+            };
+
+            const mockAutomationUseCase = {
+                executePromptNow: sinon.stub().resolves({ success: true, message: 'Test executed' }),
+                getExecutionStatus: sinon.stub().resolves({ 
+                    isRunning: false, 
+                    lastExecution: null,
+                    executionCount: 0
+                })
+            };
+
+            const mockExtensionUri = vscode.Uri.file('/test/path');
+            
+            // Create sidebar provider
+            const sidebarProvider = new AutoPrompterSidebarProvider(
+                mockExtensionUri,
+                mockConfigUseCase as any,
+                mockAutomationUseCase as any
+            );
+
+            // Test the toggle automation handler directly
+            const toggleMessage = {
+                type: WebViewMessageType.TOGGLE_AUTOMATION,
+                payload: { enabled: true },
+                requestId: 'test-toggle-123'
+            };
+
+            // Call the private method using type assertion
+            const response = await (sidebarProvider as any).handleWebviewMessage(toggleMessage);
+
+            // Verify the response
+            assert.strictEqual(response.success, true);
+            assert.strictEqual(response.data.enabled, true);
+            assert.strictEqual(response.data.message, 'Automation enabled');
+
+            // Verify that the configuration was updated
+            sinon.assert.calledOnce(mockConfigUseCase.setAutomationEnabled);
+            sinon.assert.calledWith(mockConfigUseCase.setAutomationEnabled, true);
+        });
+
+        test('should handle toggle automation errors gracefully', async () => {
+            const mockConfigUseCase = {
+                setAutomationEnabled: sinon.stub().rejects(new Error('Configuration save failed')),
+                isAutomationEnabled: sinon.stub().resolves(false),
+                getConfigurationSummary: sinon.stub().resolves({
+                    automationEnabled: false,
+                    promptText: 'Test prompt',
+                    minimalInterval: '1 minute',
+                    configurationValid: true
+                }),
+                getPromptText: sinon.stub().resolves('Test prompt')
+            };
+
+            const mockAutomationUseCase = {
+                executePromptNow: sinon.stub().resolves({ success: true, message: 'Test executed' }),
+                getExecutionStatus: sinon.stub().resolves({ 
+                    isRunning: false, 
+                    lastExecution: null,
+                    executionCount: 0
+                })
+            };
+
+            const mockExtensionUri = vscode.Uri.file('/test/path');
+            
+            // Create sidebar provider
+            const sidebarProvider = new AutoPrompterSidebarProvider(
+                mockExtensionUri,
+                mockConfigUseCase as any,
+                mockAutomationUseCase as any
+            );
+
+            // Test the toggle automation handler with error
+            const toggleMessage = {
+                type: WebViewMessageType.TOGGLE_AUTOMATION,
+                payload: { enabled: true },
+                requestId: 'test-toggle-error-123'
+            };
+
+            // Call the private method using type assertion
+            const response = await (sidebarProvider as any).handleWebviewMessage(toggleMessage);
+
+            // Verify the error response
+            assert.strictEqual(response.success, false);
+            assert.strictEqual(response.error, 'Configuration save failed');
+
+            // Verify that the configuration was attempted to be updated
+            sinon.assert.calledOnce(mockConfigUseCase.setAutomationEnabled);
+            sinon.assert.calledWith(mockConfigUseCase.setAutomationEnabled, true);
         });
     });
 });

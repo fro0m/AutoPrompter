@@ -62,8 +62,10 @@ export class AutoPrompterSidebarProvider implements ISidebarProvider {
         webviewView.webview.onDidReceiveMessage(
             async (message: WebViewMessage) => {
                 try {
+                    console.log('Received webview message:', message);
                     const response = await this.handleWebviewMessage(message);
                     if (message.requestId) {
+                        response.requestId = message.requestId;
                         await this.sendResponse(response);
                     }
                 } catch (error) {
@@ -210,16 +212,39 @@ export class AutoPrompterSidebarProvider implements ISidebarProvider {
 
     private async handleToggleAutomation(enabled: boolean): Promise<WebViewResponse> {
         try {
+            console.log(`Attempting to toggle automation to: ${enabled}`);
+            
+            // First check if configuration service is available
+            if (!this.configUseCase) {
+                throw new Error('Configuration service is not available');
+            }
+
+            // Set automation state
             await this.configUseCase.setAutomationEnabled(enabled);
+            
+            // Update UI state
             this.uiStateManager.updateState({ isAutomationEnabled: enabled });
-            await this.showStatus(enabled ? 'Automation enabled' : 'Automation disabled');
-            return { success: true };
+            
+            // Show success status
+            const statusMessage = enabled ? 'Automation enabled' : 'Automation disabled';
+            await this.showStatus(statusMessage);
+            
+            console.log(`Successfully toggled automation to: ${enabled}`);
+            
+            return { 
+                success: true,
+                data: { enabled, message: statusMessage }
+            };
         } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
             console.error('Failed to toggle automation:', error);
-            await this.showStatus('Failed to toggle automation', true);
+            
+            // Show detailed error message
+            await this.showStatus(`Failed to toggle automation: ${errorMessage}`, true);
+            
             return { 
                 success: false, 
-                error: error instanceof Error ? error.message : String(error)
+                error: errorMessage
             };
         }
     }
