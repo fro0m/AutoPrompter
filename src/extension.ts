@@ -10,7 +10,6 @@ import {
     PromptSchedulingEngine,
     AISessionMonitoringService
 } from './index';
-import { ContextAwarePromptGenerator } from './infrastructure/context-aware-prompt-generator';
 
 let sidebarProvider: AutoPrompterSidebarProvider;
 let configRepository: WorkspaceConfigurationRepository;
@@ -24,9 +23,6 @@ export async function activate(context: vscode.ExtensionContext) {
         // Initialize infrastructure layer
         configRepository = new WorkspaceConfigurationRepository();
         const chatIntegration = new VSCodeChatIntegration();
-        
-        // Initialize code context analyzer
-        const codeContextAnalyzer = new ContextAwarePromptGenerator();
         
         // Initialize domain entities  
         const scheduler = new PromptScheduler('main-scheduler', {
@@ -63,8 +59,7 @@ export async function activate(context: vscode.ExtensionContext) {
             scheduler,
             sessionMonitor,
             chatIntegration, // Use chat integration as delivery service
-            configRepository,
-            codeContextAnalyzer
+            configRepository
         );
         
         // Initialize sidebar provider

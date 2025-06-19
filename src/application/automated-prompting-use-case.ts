@@ -2,10 +2,8 @@ import { PromptScheduler, AISessionMonitor, RenderedPrompt } from '../domain';
 import { AITarget, TemplateId } from '../domain/types';
 import { 
     ExecutionResult, 
-    CodeContext,
     IPromptDeliveryService, 
     IConfigurationService,
-    ICodeContextService,
     SimplePrompt
 } from './interfaces';
 
@@ -14,17 +12,15 @@ import {
  * 
  * Orchestrates the automated prompting workflow by:
  * 1. Checking if conditions are met for prompt execution
- * 2. Gathering current code context
- * 3. Using the configured prompt text
- * 4. Delivering the prompt to the AI system (GitHub Copilot)
+ * 2. Using the configured prompt text from user configuration
+ * 3. Delivering the prompt to the AI system (GitHub Copilot)
  */
 export class AutomatedPromptingUseCase {
     constructor(
         private readonly promptScheduler: PromptScheduler,
         private readonly sessionMonitor: AISessionMonitor,
         private readonly deliveryService: IPromptDeliveryService,
-        private readonly configService: IConfigurationService,
-        private readonly codeContextService: ICodeContextService
+        private readonly configService: IConfigurationService
     ) {
         // Set up idle trigger for immediate prompting
         this.sessionMonitor.onIdle((sessionId, idleDuration) => {
@@ -94,11 +90,8 @@ export class AutomatedPromptingUseCase {
                 return ExecutionResult.skipped('No prompt text configured');
             }
 
-            // Gather code context (optional for context)
-            const context = await this.gatherCodeContext();
-
             // Create simple prompt
-            const prompt = this.createSimplePrompt(promptText, context);
+            const prompt = this.createSimplePrompt(promptText);
 
             // Convert to rendered prompt for delivery service
             const renderedPrompt = this.convertToRenderedPrompt(prompt);
@@ -166,26 +159,12 @@ export class AutomatedPromptingUseCase {
     }
 
     /**
-     * Gathers current code context for prompt generation
-     * @returns CodeContext with current development state
+     * Creates a simple prompt
      */
-    private async gatherCodeContext(): Promise<CodeContext | null> {
-        try {
-            return await this.codeContextService.getCurrentContext();
-        } catch (error) {
-            console.warn('Failed to gather code context:', error);
-            return null;
-        }
-    }
-
-    /**
-     * Creates a simple prompt with context
-     */
-    private createSimplePrompt(promptText: string, context: CodeContext | null): SimplePrompt {
+    private createSimplePrompt(promptText: string): SimplePrompt {
         return {
             content: promptText,
             timestamp: new Date(),
-            context: context || undefined
         };
     }
 

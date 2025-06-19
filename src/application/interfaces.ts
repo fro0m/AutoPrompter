@@ -43,23 +43,6 @@ export class ExecutionResult {
 }
 
 /**
- * Code context information for prompt generation
- */
-export interface CodeContext {
-    currentFile?: string;
-    currentLanguage?: string;
-    selectedText?: string;
-    cursorPosition?: {
-        line: number;
-        character: number;
-    };
-    workspaceRoot?: string;
-    openFiles?: string[];
-    gitBranch?: string;
-    projectType?: string;
-}
-
-/**
  * Service interface for prompt delivery to AI systems
  */
 export interface IPromptDeliveryService {
@@ -79,29 +62,9 @@ export interface IConfigurationService {
 }
 
 /**
- * Service interface for code context analysis
- */
-export interface ICodeContextService {
-    getCurrentContext(): Promise<CodeContext>;
-    analyzeCodeForPrompting(): Promise<{
-        relevantContext: CodeContext;
-        suggestedPromptEnhancements: string[];
-    }>;
-}
-
-/**
- * Service interface for template selection
- */
-export interface ITemplateSelectionService {
-    selectBestTemplate(): Promise<PromptTemplate | null>;
-    getAvailableTemplates(): Promise<PromptTemplate[]>;
-}
-
-/**
  * Simple prompt rendering result for text-based prompts
  */
 export interface SimplePrompt {
     content: string;
     timestamp: Date;
-    context?: CodeContext;
 }

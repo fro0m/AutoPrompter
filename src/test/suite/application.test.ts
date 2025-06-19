@@ -3,11 +3,8 @@ import {
     AutomatedPromptingUseCase,
     ConfigurationManagementUseCase,
     DeliveryResult,
-    CodeContext,
     IPromptDeliveryService,
-    IConfigurationService,
-    ICodeContextService,
-    ITemplateSelectionService
+    IConfigurationService
 } from '../../application';
 import { 
     PromptScheduler,
@@ -19,7 +16,6 @@ import {
     PromptCategory,
     TemplateId,
     AITarget,
-
     AISessionState,
     DateTime,
     AutoPrompterConfiguration,
@@ -94,53 +90,6 @@ class MockConfigurationService implements IConfigurationService {
 
     setMinimalIntervalDirect(interval: TimeInterval): void {
         this.minimalInterval = interval;
-    }
-}
-
-class MockCodeContextService implements ICodeContextService {
-    private mockContext: CodeContext = {
-        currentFile: '/test/file.ts',
-        currentLanguage: 'typescript',
-        selectedText: 'const x = 5;',
-        cursorPosition: { line: 10, character: 5 },
-        workspaceRoot: '/test',
-        openFiles: ['/test/file.ts'],
-        gitBranch: 'main',
-        projectType: 'typescript'
-    };
-
-    async getCurrentContext(): Promise<CodeContext> {
-        return { ...this.mockContext };
-    }
-
-    async analyzeCodeForPrompting(): Promise<{
-        relevantContext: CodeContext;
-        suggestedPromptEnhancements: string[];
-    }> {
-        return {
-            relevantContext: { ...this.mockContext },
-            suggestedPromptEnhancements: ['Consider adding type annotations', 'Review error handling']
-        };
-    }
-
-    setMockContext(context: Partial<CodeContext>): void {
-        this.mockContext = { ...this.mockContext, ...context };
-    }
-}
-
-class MockTemplateSelectionService implements ITemplateSelectionService {
-    private templates: PromptTemplate[] = [];
-
-    setTemplates(templates: PromptTemplate[]): void {
-        this.templates = templates;
-    }
-
-    async selectBestTemplate(): Promise<PromptTemplate | null> {
-        return this.templates.length > 0 ? this.templates[0] : null;
-    }
-
-    async getAvailableTemplates(): Promise<PromptTemplate[]> {
-        return [...this.templates];
     }
 }
 

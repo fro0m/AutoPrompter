@@ -7,7 +7,6 @@ import {
     PromptSchedulingEngine,
     AISessionMonitoringService
 } from '../../infrastructure';
-import { ContextAwarePromptGenerator } from '../../infrastructure/context-aware-prompt-generator';
 import { 
     AutoPrompterConfiguration,
     PromptScheduler,
@@ -31,29 +30,6 @@ const mockVSCode = {
 
 suite('Infrastructure Layer Tests', () => {
     
-    suite('ContextAwarePromptGenerator', () => {
-        let analyzer: ContextAwarePromptGenerator;
-
-        setup(() => {
-            analyzer = new ContextAwarePromptGenerator();
-        });
-
-        test('should analyze current context', async () => {
-            const context = await analyzer.getCurrentContext();
-            
-            assert.ok(context);
-            assert.ok(typeof context.currentFile === 'string' || context.currentFile === undefined);
-            assert.ok(typeof context.currentLanguage === 'string' || context.currentLanguage === undefined);
-        });
-
-        test('should provide prompt enhancement suggestions', async () => {
-            const analysis = await analyzer.analyzeCodeForPrompting();
-            
-            assert.ok(analysis.relevantContext);
-            assert.ok(Array.isArray(analysis.suggestedPromptEnhancements));
-        });
-    });
-
     suite('WorkspaceConfigurationRepository', () => {
         let repository: WorkspaceConfigurationRepository;
         let mockWorkspaceConfig: any;
