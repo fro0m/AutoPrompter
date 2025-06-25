@@ -349,10 +349,10 @@ section h2 {
                             </div>
                             <div class="button-group">
                                 <button id="copyGlobalBtn" class="btn btn-secondary" title="Copy your global AutoPrompter settings to this workspace">
-                                    Copy Global Settings
+                                    Copy Global → Project
                                 </button>
                                 <button id="resetWorkspaceBtn" class="btn btn-secondary" title="Reset this workspace's settings to defaults">
-                                    Reset to Defaults
+                                    Reset to Global
                                 </button>
                             </div>
                         </section>
@@ -526,7 +526,7 @@ function initializeWebview() {
       // Re-enable button after 3 seconds
       setTimeout(() => {
         copyGlobalBtn.disabled = false;
-        copyGlobalBtn.textContent = 'Copy Global Settings';
+        copyGlobalBtn.textContent = 'Copy Global → Project';
       }, 3000);
     });
   }
@@ -546,7 +546,7 @@ function initializeWebview() {
         // Re-enable button after 3 seconds
         setTimeout(() => {
           resetWorkspaceBtn.disabled = false;
-          resetWorkspaceBtn.textContent = 'Reset to Defaults';
+          resetWorkspaceBtn.textContent = 'Reset to Global';
         }, 3000);
       }
     });
@@ -600,6 +600,68 @@ function initializeWebview() {
         case 'statusUpdate':
           console.log('AutoPrompter: Handling statusUpdate message');
           updateStatus(message.text, message.active);
+          break;
+          
+        case 'COPY_GLOBAL_TO_WORKSPACE_RESPONSE':
+          console.log('AutoPrompter: Handling COPY_GLOBAL_TO_WORKSPACE_RESPONSE');
+          if (copyGlobalBtn) {
+            copyGlobalBtn.disabled = false;
+            copyGlobalBtn.textContent = 'Copy Global → Project';
+          }
+          if (message.success) {
+            showMessage('Global settings copied to workspace successfully', false);
+            // Request updated workspace info
+            vscode.postMessage({ type: 'REQUEST_WORKSPACE_INFO', payload: {} });
+          } else {
+            showMessage('Failed to copy global settings: ' + (message.error || 'Unknown error'), true);
+          }
+          break;
+          
+        case 'RESET_WORKSPACE_SETTINGS_RESPONSE':
+          console.log('AutoPrompter: Handling RESET_WORKSPACE_SETTINGS_RESPONSE');
+          if (resetWorkspaceBtn) {
+            resetWorkspaceBtn.disabled = false;
+            resetWorkspaceBtn.textContent = 'Reset to Global';
+          }
+          if (message.success) {
+            showMessage('Workspace settings reset to defaults successfully', false);
+            // Request updated workspace info and config
+            vscode.postMessage({ type: 'REQUEST_WORKSPACE_INFO', payload: {} });
+            vscode.postMessage({ type: 'READY', payload: {} });
+          } else {
+            showMessage('Failed to reset workspace settings: ' + (message.error || 'Unknown error'), true);
+          }
+          break;
+          
+        case 'EXECUTE_NOW_RESPONSE':
+          console.log('AutoPrompter: Handling EXECUTE_NOW_RESPONSE');
+          if (executeNowBtn) {
+            executeNowBtn.disabled = false;
+            executeNowBtn.textContent = 'Execute Now';
+          }
+          if (message.success) {
+            showMessage('Prompt executed successfully', false);
+          } else {
+            showMessage('Failed to execute prompt: ' + (message.error || 'Unknown error'), true);
+          }
+          break;
+          
+        case 'ERROR':
+          console.error('AutoPrompter: Received error message:', message);
+          showMessage(message.payload?.message || message.error || 'An error occurred', true);
+          // Re-enable all buttons on error
+          if (copyGlobalBtn) {
+            copyGlobalBtn.disabled = false;
+            copyGlobalBtn.textContent = 'Copy Global → Project';
+          }
+          if (resetWorkspaceBtn) {
+            resetWorkspaceBtn.disabled = false;
+            resetWorkspaceBtn.textContent = 'Reset to Global';
+          }
+          if (executeNowBtn) {
+            executeNowBtn.disabled = false;
+            executeNowBtn.textContent = 'Execute Now';
+          }
           break;
           
         default:

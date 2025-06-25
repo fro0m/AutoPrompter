@@ -26,19 +26,42 @@ export class WorkspaceConfigurationRepository implements IConfigurationRepositor
      */
     async load(): Promise<AutoPrompterConfiguration> {
         try {
+            console.log('WorkspaceConfigurationRepository: Starting configuration load');
             const workspaceConfig = vscode.workspace.getConfiguration(this.configurationSection);
+            console.log('WorkspaceConfigurationRepository: Got workspace configuration object');
             
             // Load prompt text with workspace priority
             const promptTextInspect = workspaceConfig.inspect<string>('promptText');
+            console.log('WorkspaceConfigurationRepository: Prompt text inspect:', {
+                workspaceFolderValue: promptTextInspect?.workspaceFolderValue,
+                workspaceValue: promptTextInspect?.workspaceValue,
+                globalValue: promptTextInspect?.globalValue,
+                defaultValue: promptTextInspect?.defaultValue
+            });
             const promptText = this.getWorkspaceValue(promptTextInspect, 'Please review the current code and provide suggestions for improvement.');
+            console.log('WorkspaceConfigurationRepository: Resolved prompt text:', promptText);
             
             // Load minimal interval with workspace priority
             const intervalInspect = workspaceConfig.inspect<number>('minimalIntervalMs');
+            console.log('WorkspaceConfigurationRepository: Interval inspect:', {
+                workspaceFolderValue: intervalInspect?.workspaceFolderValue,
+                workspaceValue: intervalInspect?.workspaceValue,
+                globalValue: intervalInspect?.globalValue,
+                defaultValue: intervalInspect?.defaultValue
+            });
             const minimalIntervalMs = this.getWorkspaceValue(intervalInspect, 60000);
+            console.log('WorkspaceConfigurationRepository: Resolved interval ms:', minimalIntervalMs);
             
             // Load enabled state with workspace priority
             const enabledInspect = workspaceConfig.inspect<boolean>('enabled');
+            console.log('WorkspaceConfigurationRepository: Enabled inspect:', {
+                workspaceFolderValue: enabledInspect?.workspaceFolderValue,
+                workspaceValue: enabledInspect?.workspaceValue,
+                globalValue: enabledInspect?.globalValue,
+                defaultValue: enabledInspect?.defaultValue
+            });
             const isEnabled = this.getWorkspaceValue(enabledInspect, false);
+            console.log('WorkspaceConfigurationRepository: Resolved enabled state:', isEnabled);
             
             // Create schedule configuration
             const schedule: ScheduleConfiguration = {
@@ -46,6 +69,7 @@ export class WorkspaceConfigurationRepository implements IConfigurationRepositor
                 isActive: isEnabled, // Active when automation is enabled
                 maxRetries: 3 // Default value
             };
+            console.log('WorkspaceConfigurationRepository: Created schedule config:', schedule);
             
             // Default max daily prompts
             const maxDailyPrompts = 50;
@@ -56,10 +80,16 @@ export class WorkspaceConfigurationRepository implements IConfigurationRepositor
                 isEnabled,
                 maxDailyPrompts
             );
+            console.log('WorkspaceConfigurationRepository: Created configuration object:', {
+                promptTextLength: config.promptText.length,
+                minimalIntervalMs: config.schedule.minimalIntervalMs,
+                isEnabled: config.isEnabled,
+                maxDailyPrompts: config.maxDailyPrompts
+            });
             
             // Log configuration source information
             const configSource = this.getConfigurationSource();
-            console.log('Loaded configuration:', {
+            console.log('WorkspaceConfigurationRepository: Loaded configuration:', {
                 promptText: promptText.substring(0, 50) + '...',
                 minimalIntervalMs,
                 isEnabled,
@@ -69,7 +99,7 @@ export class WorkspaceConfigurationRepository implements IConfigurationRepositor
             
             return config;
         } catch (error) {
-            console.warn('Failed to load configuration, using defaults:', error);
+            console.warn('WorkspaceConfigurationRepository: Failed to load configuration, using defaults:', error);
             return AutoPrompterConfiguration.createDefault();
         }
     }
@@ -222,22 +252,30 @@ export class WorkspaceConfigurationRepository implements IConfigurationRepositor
 
     // IConfigurationService interface methods
     async getPromptText(): Promise<string> {
+        console.log('WorkspaceConfigurationRepository: getPromptText() called');
         const config = await this.load();
+        console.log('WorkspaceConfigurationRepository: getPromptText() returning:', config.promptText.substring(0, 50) + '...');
         return config.promptText;
     }
 
     async setPromptText(promptText: string): Promise<void> {
+        console.log('WorkspaceConfigurationRepository: setPromptText() called with:', promptText.substring(0, 50) + '...');
         const config = await this.load();
         const updatedConfig = config.withPromptText(promptText);
         await this.save(updatedConfig);
+        console.log('WorkspaceConfigurationRepository: setPromptText() completed successfully');
     }
 
     async getMinimalInterval(): Promise<TimeInterval> {
+        console.log('WorkspaceConfigurationRepository: getMinimalInterval() called');
         const config = await this.load();
-        return TimeInterval.fromSeconds(config.schedule.minimalIntervalMs / 1000);
+        const interval = TimeInterval.fromSeconds(config.schedule.minimalIntervalMs / 1000);
+        console.log('WorkspaceConfigurationRepository: getMinimalInterval() returning:', interval.ms);
+        return interval;
     }
 
     async setMinimalInterval(interval: TimeInterval): Promise<void> {
+        console.log('WorkspaceConfigurationRepository: setMinimalInterval() called with:', interval.ms);
         const config = await this.load();
         const updatedSchedule: ScheduleConfiguration = {
             ...config.schedule,
@@ -245,17 +283,22 @@ export class WorkspaceConfigurationRepository implements IConfigurationRepositor
         };
         const updatedConfig = config.withSchedule(updatedSchedule);
         await this.save(updatedConfig);
+        console.log('WorkspaceConfigurationRepository: setMinimalInterval() completed successfully');
     }
 
     async isAutomationEnabled(): Promise<boolean> {
+        console.log('WorkspaceConfigurationRepository: isAutomationEnabled() called');
         const config = await this.load();
+        console.log('WorkspaceConfigurationRepository: isAutomationEnabled() returning:', config.isEnabled);
         return config.isEnabled;
     }
 
     async setAutomationEnabled(enabled: boolean): Promise<void> {
+        console.log('WorkspaceConfigurationRepository: setAutomationEnabled() called with:', enabled);
         const config = await this.load();
         const updatedConfig = config.withEnabled(enabled);
         await this.save(updatedConfig);
+        console.log('WorkspaceConfigurationRepository: setAutomationEnabled() completed successfully');
     }
 
     /**
